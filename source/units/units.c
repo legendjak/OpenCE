@@ -699,6 +699,7 @@ symbols in this file:
 #include "coop_scripts.h" /* port: port/linux/game/coop_scripts.c */
 #include "coop_enemies.h" /* port: port/linux/game/coop_enemies.c */
 #include "mcc_grenades.h" /* port: port/linux/game/mcc_grenades.h */
+#include "flashlight_sound.h" /* port: port/linux/game/flashlight_sound.c */
 
 /* port: the control and animation impulses the host's actors give their
 units go to the clients' copies (port/linux/game/network_actors.c) */
@@ -6307,7 +6308,11 @@ boolean unit_update(
 			(TEST_FLAG(unit->unit.flags, _unit_integrated_light_on_bit) || unit->unit.integrated_light_battery > 0.2f) &&
 			unit->object.parent_object_index==NONE)
 		{
-			effect_new_from_object(unit_definition->unit.integrated_light_toggle_effect.index, unit_index, unit_index, NONE, 0.f, 0.f, NULL, NULL);
+			/* port: a player's unit whose definition has no toggle effect (the
+			multiplayer cyborg's) plays the campaign cyborg's (flashlight_sound.c) */
+			effect_new_from_object(
+				flashlight_sound_toggle_effect(unit_index, unit_definition->unit.integrated_light_toggle_effect.index),
+				unit_index, unit_index, NONE, 0.f, 0.f, NULL, NULL);
 			unit->unit.flags ^= FLAG(_unit_integrated_light_on_bit);
 		}
 	}
