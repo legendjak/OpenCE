@@ -1437,6 +1437,13 @@ long scenario_tags_load(
 
 				device_render_bounds_tags_loaded();
 			}
+			/* port: Captain Keyes's lower lip measured, to be levelled where
+			no emotion levels it (port/linux/game/captain_mouth.c) */
+			{
+				extern void captain_mouth_tags_loaded(void);
+
+				captain_mouth_tags_loaded();
+			}
 			/* port: the menus' tags, added to the map's (port/linux/game/menu_tags.c) */
 			{
 				extern void menu_tags_loaded(char const *map_name);
