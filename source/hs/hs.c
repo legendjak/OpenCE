@@ -2847,6 +2847,7 @@ symbols in this file:
 #include "x10_warthogs.h" /* port: port/linux/game/x10_warthogs.c */
 #include "cryo_exit_foley.h" /* port: port/linux/game/cryo_exit_foley.c */
 #include "cryo_steam.h" /* port: port/linux/game/cryo_steam.c */
+#include "x20_chip.h" /* port: port/linux/game/x20_chip.c */
 #ifdef HALO_PROFILE
 #include "profile_console.h" /* port: port/linux/game/profile_console.c */
 #endif
@@ -15561,6 +15562,9 @@ boolean hs_scenario_postprocess(
 		cinematic's shot of it, and opens without steam in the short cryo
 		scene (cryo_steam.c) */
 		cryo_steam_scripts_loaded(scenario, hs_syntax_data);
+		/* port: a10's bridge cinematic makes Keyes's chip in his hand at the
+		console, out of view, not as he raises it (x20_chip.c) */
+		x20_chip_scripts_loaded(scenario, hs_syntax_data);
 		if (scenario->hs_string_constants.size<0x400)
 		{
 			success = tag_data_resize(
