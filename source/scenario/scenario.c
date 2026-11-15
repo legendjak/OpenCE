@@ -197,6 +197,7 @@ symbols in this file:
 #include "units/units.h"
 #include "structure_culling.h" /* port: port/linux/game/structure_culling.c */
 #include "atmospheric_fog_settle.h" /* port: port/linux/game/atmospheric_fog_settle.c */
+#include "rasterizer/rasterizer.h" /* port: rasterizer_lights_reset_for_new_structure_bsp */
 
 /* ---------- constants */
 
@@ -1166,6 +1167,8 @@ boolean scenario_switch_structure_bsp(
 			global_structure_bsp_index = structure_bsp_index;
 			/* port: cache buckets while the newly current bsp's tags are loaded */
 			structure_culling_structure_bsp_loaded();
+			/* port: its lens flare markers seen anew (rasterizer_lights.c) */
+			rasterizer_lights_reset_for_new_structure_bsp();
 
 			/* port: recovery can reinstall the old BSP. Its scripted camera
 			cluster is still valid, but another BSP owns different clusters. */
