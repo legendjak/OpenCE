@@ -821,6 +821,10 @@ Each frame shows the world between the last two ticks
   one shot to the next when they were too close to tell for a cut (the
   Captain's bridge in a10's opening), and what the script moved for the new
   shot slid there (Sergeant Johnson's next walk).
+- The first-person weapon's animations the game starts without blending
+  into them (a melee, the weapon readied or overheated) are not mixed into
+  either: the pose cuts, as on the Xbox. Mixed, the shotgun's melee swept
+  the gun and the arm across the view.
 - After a long frame (several ticks in one frame), the camera mixes the
   last tick only, as the objects do.
 - In cinematics, a camera that moves with an object (the lifepod in a30,
@@ -2035,6 +2039,7 @@ Other changes:
 | `objects/widgets/glow.c` | A glow's trailing particles are made and aged by the ticks since the last frame (`game_time_get_elapsed`), not by the game's whole time (`game_time_get`), which made them up to the limit of glow particles every frame and aged each past its lifetime by the next; once a frame, however many views draw the glow (split screen's windows, a mirror's), each of which added the frame's ticks again (its datum's `pad24E` keeps the game time it was last updated at). No stock map's glow has them; a Custom Edition map's can. |
 | `rasterizer/rasterizer_text.c`, `text/draw_string.c` | Text is drawn from an atlas of the fonts' glyphs, rasterized at the resolution the game draws at (`src/text_hires.c`), when the font has every character of the string. Text can be drawn scaled about a point (`rasterizer_text_set_scale`), as the players' names are. Each glyph's advance is centred on the font tag character's, so the layout is the same, and a glyph is cut at a text box only where the font tag's character visibly was. |
 | `interface/first_person_weapons.c` | The first-person hands are drawn with the unit's shield modifier shader, as its body is (`display.viewmodel_shield`). A needler's reload draws its needles growing toward those the reload loads (`needler_reload_rounds_loaded`), not toward the rounds left alone: with fewer than 20 left, they sank during the reload and popped up as it ended, on the Xbox too. |
+| `interface/first_person_weapons.c` | The first-person hands are drawn with the unit's shield modifier shader, as its body is (`display.viewmodel_shield`). A first-person animation started without blending into it (a melee, the weapon readied or overheated) tells the frames' interpolation (`render_interpolation_first_person_cut`), which draws that tick's pose as it is, not mixed from the pose before (`display.interpolation`). |
 | `render/render_objects.c`, `objects/objects.c` | In first person, your own body is drawn from the waist down with the pose `first_person_legs.c` makes (`display.first_person_legs`); the waist it found and the mesh `object_mesh.c` read are forgotten on a new map. |
 | `interface/first_person_weapons.c` | The first-person hands are drawn with the unit's shield modifier shader, as its body is (`display.viewmodel_shield`). |
 | `render/render_objects.c`, `render/render.c`, `objects/objects.c` | In first person, your own body is drawn from the waist down with the pose `first_person_legs.c` makes (`display.first_person_legs`), and in a mirror whole, with what it carries, set back as far as the legs as the window's own view sets them back (`render.c` gives the mirror that view); the waist it found and the mesh `object_mesh.c` read are forgotten on a new map. |
