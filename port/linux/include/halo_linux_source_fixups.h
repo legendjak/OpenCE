@@ -20,6 +20,7 @@ struct observer_result;
 struct render_camera;
 struct real_matrix4x3;
 union real_point3d;
+union real_vector3d;
 int halo_interpolation_enabled(void);
 float game_time_get_tick_fraction(void);
 void render_interpolation_tick(void);
@@ -38,6 +39,13 @@ void render_interpolation_first_person(short local_player_index, long weapon_ind
 	struct real_matrix4x3 *node_matrices, short node_count, struct render_camera const *camera);
 void render_interpolation_first_person_cut(short local_player_index);
 float render_interpolation_game_time_sec(long ticks);
+
+/* for an actor that obeys (a command list), whose path no way round its
+obstacles was found for: the bipeds ahead that move its way taken from
+them, whether any was (port/linux/game/obey_obstacles.c) */
+struct obstacles;
+int obey_obstacles_clear_way(struct obstacles *obstacles, long source_object_index,
+	union real_point3d const *start_point, union real_vector3d const *movement_direction);
 
 /* whether the map being loaded, by the name it was loaded by, is a
 downloaded one, whose scripts may call and set less: one map sharing
