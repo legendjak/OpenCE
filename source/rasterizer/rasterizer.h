@@ -765,6 +765,11 @@ void rasterizer_lights_reset_for_new_map(
 /* port: (scenario_switch_structure_bsp) */
 void rasterizer_lights_reset_for_new_structure_bsp(
 	void);
+/* port: (longsword_exhaust.c) */
+boolean rasterizer_lens_flare_face_light_direction(
+	long definition_index,
+	real falloff_angle,
+	real cutoff_angle);
 void rasterizer_lights_begin(
 	void);
 void rasterizer_lights_end(
