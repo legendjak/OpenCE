@@ -63,6 +63,7 @@ OBJECTS.C
 #include "units/units.h"
 #include "units/bipeds.h" /* port: vehicle riding */
 #include "animation_blend_space.h" /* port: port/linux/game/animation_blend_space.c */
+#include "crewman_hands.h" /* port: port/linux/game/crewman_hands.c */
 /* port: object_bounds_cache.c's */
 void object_bounds_cache_update(long object_index, real_point3d const *center, real radius);
 /* port: port/linux/game/first_person_legs.c's */
@@ -3168,6 +3169,9 @@ static void object_postprocess_node_matrices(
 				object_index,
 				&object->object.node_matrices);
 		object_type_postprocess_node_matrices(object_index, matrices);
+		/* port: a crewman's hands kept out of what he works, his elbows bent
+		(port/linux/game/crewman_hands.c) */
+		crewman_hands_postprocess_node_matrices(object_index, matrices);
 	}
 
 	return;

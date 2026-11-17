@@ -627,6 +627,12 @@ void scenario_tags_unload(
 
 		pelican_lights_tags_unloaded();
 	}
+	/* port: the crewman's arms forgotten (port/linux/game/crewman_hands.c) */
+	{
+		extern void crewman_hands_tags_unloaded(void);
+
+		crewman_hands_tags_unloaded();
+	}
 	sound_cache_close();
 	texture_cache_close();
 	/* port: the mods' tags go, after the sound and texture caches that held
@@ -1477,6 +1483,13 @@ long scenario_tags_load(
 				extern short pelican_lights_tags_loaded(char const *map_name);
 
 				pelican_lights_tags_loaded(cache_file_globals.header.name);
+			}
+			/* port: the crewman's arms read from his model, for his hands to be
+			kept out of what he works (port/linux/game/crewman_hands.c) */
+			{
+				extern void crewman_hands_tags_loaded(void);
+
+				crewman_hands_tags_loaded();
 			}
 			/* port: the menus' tags, added to the map's (port/linux/game/menu_tags.c) */
 			{
