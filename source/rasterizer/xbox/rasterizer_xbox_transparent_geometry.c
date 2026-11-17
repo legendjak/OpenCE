@@ -171,6 +171,7 @@ symbols in this file:
 #include "rasterizer/xbox/rasterizer_xbox_water.h"
 #include "rasterizer/xbox/shader_transparent_chicago_preprocessor.h"
 #include "plasma_pistol_heat.h" /* port: port/linux/game/plasma_pistol_heat.c */
+#include "pelican_lights.h" /* port: port/linux/game/pelican_lights.c */
 
 /* ---------- constants */
 
@@ -1467,10 +1468,12 @@ void rasterizer_transparent_geometry_group_draw(
 					SetRenderStateSmart(D3DRS_ZENABLE, TRUE);
 					SetRenderStateSmart(D3DRS_ZWRITEENABLE, FALSE);
 					SetRenderStateSmart(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+					/* port: the Pelican's lights with a bias of their own,
+					to lie whole over its curved hull (pelican_lights.c) */
 					SetRenderStateSmart(
 						D3DRS_ZBIAS,
 						shader_is_decal(group->shader) ?
-							rasterizer_debug_options.zbias :
+							pelican_lights_zbias(group->shader, rasterizer_debug_options.zbias) :
 							0);
 				}
 
