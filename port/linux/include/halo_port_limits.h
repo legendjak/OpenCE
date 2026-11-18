@@ -79,7 +79,9 @@ may satisfy omitted base resources with its own validated local files.
 Version 45: a race track's flag whose number another flag has keeps the
 free number it is given (race_flags_make_unique, game/game_engine_race.c);
 the overshield's collision material is an engineer's force field, as the
-active camouflage's is (game/overshield_material.c). */
+active camouflage's is (game/overshield_material.c); a second weapon in a
+multiplayer game is left to the action button (unit_should_autopick_weapon,
+game/players.c). */
 #define HALO_PORT_NETWORK_VERSION 45
 /* ... the advertisement's reserved bytes: the version (a little-endian word),
 then flags, then the game's kind (an OpenCE gametype's mode, and Hardcore:
