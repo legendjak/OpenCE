@@ -237,6 +237,10 @@ static const struct config_setting config_settings[] =
 		"The least time a level's loading screen stays up, in seconds (up to\n"
 		"30), with its sweep paced to it, as over the Xbox's slower disc: 0\n"
 		"ends it when the level is ready. Not in network games." },
+	{ "display.widescreen_loading_fill", _config_boolean, "false", "HALO_WIDESCREEN_LOADING_FILL", _environment_value, _platform_all,
+		"With widescreen_loading, draw the loading picture at its own 4:3\n"
+		"proportions, filling the width and leaving out its top and bottom\n"
+		"edges; false stretches it to the screen's width." },
 	{ "display.shadow_resolution", _config_integer, "128", "HALO_SHADOW_RESOLUTION", _environment_value,
 		_platform_all,
 		"The size the objects' shadows are drawn at, in pixels each way: 128 as\n"
