@@ -963,7 +963,8 @@ a shadow in first person: the body others see, and the weapon in its hands,
 cast on the ground and the walls as their shadows are. The stock game casts
 none for the player whose view it is. Only the shadow is added: the view
 still shows the first-person weapon and arms alone (and your legs with
-LEGS).
+LEGS). With LEGS the shadow is cast from the body set back as far as the
+legs are, so that your legs stand on their shadow.
 
 Only this machine's view changes. Nothing the machines send each other
 changes, so players with different settings play together.
@@ -2126,6 +2127,7 @@ Other changes:
 | `interface/first_person_weapons.c` | The first-person hands are drawn with the unit's shield modifier shader, as its body is (`display.viewmodel_shield`). |
 | `render/render_objects.c`, `render/render.c`, `objects/objects.c` | In first person, your own body is drawn from the waist down with the pose `first_person_legs.c` makes (`display.first_person_legs`), and in a mirror whole, with what it carries, set back as far as the legs as the window's own view sets them back (`render.c` gives the mirror that view); the waist it found and the mesh `object_mesh.c` read are forgotten on a new map. |
 | `render/render_objects.c` | With `display.first_person_shadow` (`first_person_shadow.c`), the shadows' pass draws the shadow of the body of the player a view is seen from, and of what it carries, as the stock game does for every other body; the view itself still leaves that body out. |
+| `render/render_objects.c` | With `display.first_person_shadow` (`first_person_shadow.c`), the shadows' pass draws the shadow of the body of the player a view is seen from, and of what it carries, as the stock game does for every other body; the view itself still leaves that body out. With LEGS, the shadow map's center and the body and what it carries are set back as far as `first_person_legs.c` sets the legs back, so that the legs stand on their shadow. |
 | `render/render_objects.c` | An object's shadow map is centered where the frame draws the object between the ticks (`display.interpolation`, `render_interpolation_object_point`), as its model is drawn into the map, not where the tick left it: a fast vehicle (a Ghost) stood up to a tick's travel off its map's center, and the map's edge and corner fade cut its shadow's trailing side, flickering. |
 | `objects/object_lights.c` | Glows the port lights itself (`shield_glow.c`): dynamic lights attached to an object's node, colored and sized each frame by their maker, drawn with a light definition the map has. |
 | `objects/objects.c` | A structure bsp switched to forgets the cluster the scripts activate objects from (`object_pvs_set_camera`), which is the old bsp's: the players' pvs read that cluster of the new bsp, an assertion's halt where the new bsp has fewer clusters (d20's captain cinematic, `switch_bsp 4`, with one still set). Reloading the original BSP after a failed switch preserves its cluster. Object-based activation follows the object across a switch. |
