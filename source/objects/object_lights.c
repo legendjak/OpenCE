@@ -1157,10 +1157,6 @@ void lights_preprocess_scene(
 				/* port: a glow's radius is as set (light_port_glow_set) */
 				if (TEST_FLAG(light->flags, _point_light_port_glow_bit))
 					light->radius = light->intensity_scale;
-				/* port: with per-pixel lighting, a scaled object's light
-				reaches as far as the object is scaled (light_scale.c) */
-				else
-					light->radius = light_scale_radius(light->object_index, light->radius);
 				lights_port.radius_writes++;
 				if (light->radius != 0.0f)
 				{
@@ -1172,6 +1168,12 @@ void lights_preprocess_scene(
 					light_parameters.forward = light->forward;
 					light_parameters.up = light->up;
 					light_parameters.radius = light->radius;
+					/* port: with per-pixel lighting, a light on an object
+					drawn smaller reaches only as far as the object is scaled
+					(light_scale.c): the radius drawn with alone, not
+					light->radius, which the units' illumination reads */
+					if (!TEST_FLAG(light->flags, _point_light_port_glow_bit))
+						light_parameters.radius = light_scale_radius(light->object_index, light->radius);
 					light_parameters.color = light->color;
 					match_assert(
 						"c:\\halo\\SOURCE\\objects\\object_lights.c",

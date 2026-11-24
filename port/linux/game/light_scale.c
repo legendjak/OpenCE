@@ -12,10 +12,16 @@ hull beside it. Lit for each vertex, as on the Xbox, the ring's few and far
 vertices were out of its reach and nothing showed; lit for each pixel
 (display.per_pixel_lighting), the hull's edge was painted red.
 
-With display.per_pixel_lighting, a light on an object reaches as far as
-its definition says times the object's scale (lights_preprocess_scene):
-the pod's light stays in the pod. Lit for each vertex, the radius is the
-definition's, as on the Xbox. Only the drawing changes.
+With display.per_pixel_lighting, a light on an object drawn smaller than
+its own size reaches as far as its definition says times the object's scale
+(lights_preprocess_scene): the pod's light stays in the pod. Lit for each
+vertex, the radius is the definition's, as on the Xbox. Only the drawing
+changes: the radius is the one the light is drawn with, and the light's own
+(light->radius), which the units' illumination reads as the game is
+simulated, is the definition's as before. An object drawn larger keeps its
+lights' radius, as on the Xbox: a light reaching past it would light the
+areas around its bounding sphere (light_compute_bounding_sphere, the
+definition's radius) only where they consider it.
 */
 
 /* ---------- headers */
@@ -61,7 +67,7 @@ real light_scale_radius(
 		return radius;
 	}
 	object = object_try_and_get_and_verify_type(object_index, _object_mask_all);
-	if (!object || !(object->object.scale > 0.0f))
+	if (!object || !(object->object.scale > 0.0f) || !(object->object.scale < 1.0f))
 	{
 		return radius;
 	}

@@ -61,8 +61,18 @@ int main(int argc, char **argv)
 		setting(TRUE);
 		test_object.object.scale = 0.02f;
 		CHECK(near(light_scale_radius(7, 1.0f), 0.02f), "radius %f", light_scale_radius(7, 1.0f));
+		return 0;
+	}
+	/* an object drawn its size or larger (the ring's miniature, three times
+	its own): its light as the definition says, as on the Xbox, within the
+	bounding sphere its areas are found by */
+	CASE("larger")
+	{
+		setting(TRUE);
 		test_object.object.scale = 3.0f;
-		CHECK(near(light_scale_radius(7, 0.5f), 1.5f), "radius %f", light_scale_radius(7, 0.5f));
+		CHECK(near(light_scale_radius(7, 0.5f), 0.5f), "radius %f", light_scale_radius(7, 0.5f));
+		test_object.object.scale = 1.0f;
+		CHECK(near(light_scale_radius(7, 0.5f), 0.5f), "radius %f", light_scale_radius(7, 0.5f));
 		return 0;
 	}
 	/* lit for each vertex: as on the Xbox, read again as the setting

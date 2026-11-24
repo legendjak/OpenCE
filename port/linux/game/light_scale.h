@@ -11,7 +11,8 @@ With per-pixel lighting, a light on a scaled object scaled with it
 /* ---------- prototypes */
 
 /* the radius of a light of that radius on the object (NONE: none): times
-the object's scale with display.per_pixel_lighting, as it is without */
+the object's scale with display.per_pixel_lighting when it is drawn
+smaller, as it is without or drawn its size or larger */
 real light_scale_radius(
 	long object_index,
 	real radius);
