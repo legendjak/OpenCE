@@ -562,21 +562,42 @@ to one of those (halo_screen_scale), every one of its sprites lands on some,
 as steady bright dots. d40's opening showed two over the Pillar of Autumn:
 the flames on its hull, where the level has it, a fifth of a pixel across
 in the sky of the area the opening flies through, which has the ship
-elsewhere. A reflection of a pixel or more keeps all of it. */
+elsewhere. A reflection of a pixel or more keeps all of it.
+
+Its size is the sprite's as drawn: the radius by the scale it is drawn with
+(the corona's corona_radius_scale, which can stretch it across several
+pixels one way), the part of a pixel it covers each way. Dimmed as much as
+what it covers of a pixel of the game's 480 lines is less than what it
+covers of one of the display's, which already shows it now and then as the
+Xbox did when they are the same size: at 480 lines it keeps all of it. */
 static real lens_flare_reflection_coverage(
 	real radius,
+	real_vector2d const *scale,
 	real depth)
 {
 	real half_height = (real)(global_window_parameters.camera.viewport_bounds.y1 -
 		global_window_parameters.camera.viewport_bounds.y0) * 0.5f;
 	real tangent = (real)tan(global_window_parameters.camera.vertical_field_of_view * 0.5f);
+	real screen_scale = halo_screen_scale();
 	real diameter;
+	real width;
+	real height;
+	real game_coverage;
+	real display_coverage;
 
 	if (!(depth > 0.0f) || !(tangent > 0.0f) || !(half_height > 0.0f))
 		return 1.0f;
 	diameter = 2.0f * radius / depth * half_height / tangent;
+	width = diameter * (scale->i < 0.0f ? -scale->i : scale->i);
+	height = diameter * (scale->j < 0.0f ? -scale->j : scale->j);
+	if (!(width >= 0.0f) || !(height >= 0.0f) || (width >= 1.0f && height >= 1.0f))
+		return 1.0f;
+	if (!(screen_scale >= 1.0f))
+		screen_scale = 1.0f;
+	game_coverage = MIN(width, 1.0f) * MIN(height, 1.0f);
+	display_coverage = MIN(width * screen_scale, 1.0f) * MIN(height * screen_scale, 1.0f);
 
-	return diameter >= 1.0f || !(diameter >= 0.0f) ? 1.0f : diameter * diameter;
+	return display_coverage > 0.0f ? MIN(game_coverage / display_coverage, 1.0f) : 1.0f;
 }
 
 static real lens_flare_evaluate_corona_rotation_function(
@@ -1282,16 +1303,29 @@ void rasterizer_lens_flares_draw(
 
 								/* port: one smaller than a pixel of the game's
 								480 lines dimmed by what of it it covers, the
-								radius as drawn (below)
+								radius and scale as drawn (below)
 								(lens_flare_reflection_coverage) */
-								brightness *= lens_flare_reflection_coverage(
-									(TEST_FLAG(reflection->flags, _lens_flare_reflection_radius_scaled_by_occlusion_bit) ?
-										(occlusion_fraction+1.0f)*radius*0.5f :
-										radius)*
-									(TEST_FLAG(reflection->flags, _lens_flare_reflection_radius_not_scaled_by_distance_bit) ?
-										depth :
-										1.0f),
-									depth);
+								{
+									real_vector2d drawn_scale;
+
+									if (reflection_index == 0)
+									{
+										drawn_scale = definition->corona_radius_scale;
+									}
+									else
+									{
+										drawn_scale.i = drawn_scale.j = 1.0f;
+									}
+									brightness *= lens_flare_reflection_coverage(
+										(TEST_FLAG(reflection->flags, _lens_flare_reflection_radius_scaled_by_occlusion_bit) ?
+											(occlusion_fraction+1.0f)*radius*0.5f :
+											radius)*
+										(TEST_FLAG(reflection->flags, _lens_flare_reflection_radius_not_scaled_by_distance_bit) ?
+											depth :
+											1.0f),
+										&drawn_scale,
+										depth);
+								}
 
 								if (reflection->tint_color.alpha == 0.0f &&
 									reflection->tint_color.red == 0.0f &&
