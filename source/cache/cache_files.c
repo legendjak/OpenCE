@@ -954,7 +954,7 @@ boolean cache_file_header_verify(
 	{
 		if (fatal)
 		{
-			error(_error_silent, "'%.96s' is a cache of version %ld, which this build cannot run (it runs Xbox caches, 5, and Custom Edition caches, 609)",
+			error(_error_silent, "'%.96s' is a cache of version %ld, which this build cannot run (it runs Xbox caches, 5, and Halo PC's and Custom Edition's caches, 7 and 609)",
 				scenario_name, (long)header->version);
 		}
 

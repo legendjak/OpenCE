@@ -1088,6 +1088,7 @@ static enum cache_file_status cache_header_identify(
 	case CACHE_FILE_VERSION_XBOX:
 		identity->format = _cache_file_format_xbox_cache;
 		break;
+	case CACHE_FILE_VERSION_HALO_PC:
 	case CACHE_FILE_VERSION_CUSTOM_EDITION:
 		identity->format = _cache_file_format_custom_edition_cache;
 		break;
@@ -2070,6 +2071,7 @@ enum cache_file_format cache_file_header_format(
 	case CACHE_FILE_VERSION_XBOX:
 		format = _cache_file_format_xbox_cache;
 		break;
+	case CACHE_FILE_VERSION_HALO_PC:
 	case CACHE_FILE_VERSION_CUSTOM_EDITION:
 		format = _cache_file_format_custom_edition_cache;
 		break;

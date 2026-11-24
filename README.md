@@ -100,6 +100,8 @@ The Arch-based distribution release is available on the [AUR](https://aur.archli
 
 Halo Custom Edition maps are placed in `custom_maps` folder, not in the `maps` folder itself. It requires `bitmaps.map`, `sounds.map`, and `loc.map` in the `custom_maps` folder, which you must copy over from your existing installed copy of Halo Custom Edition. The maps folder is only for Xbox maps that's extracted from your disc image, not Halo Custom Edition. 
 
+Retail Halo PC's maps (version 7, build 01.00.00.0564 and its patches) run the same way: set `paths.custom_edition` in `config.toml` to the Halo PC install (for example `D:\Games`), whose `maps` folder holds them with its `bitmaps.map` and `sounds.map`; they need no `loc.map`.
+
 Halo PC Gearbox exclusive maps (Ice Fields, Death Island, Danger Canyon, Infinity, Timberland and Gephyrophobia) **are not included by default**. They would need to be copied over from your existing Halo Custom Edition install's `maps` folder into `custom_maps` folder too.
 
 Once that's setup, the maps will appear on CUSTOM SINGLEPLAYER and CUSTOM MULTIPLAYER in the map list in Campaign's New Game, and on the Map screen of Create Game (Internet or LAN). A CUSTOM SINGLEPLAYER map plays as a campaign level, alone or as

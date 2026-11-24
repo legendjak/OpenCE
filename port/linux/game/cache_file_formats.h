@@ -35,6 +35,12 @@ against the file or buffer it refers to before it is used.
 
 #define CACHE_FILE_VERSION_XBOX 5
 #define CACHE_FILE_VERSION_CUSTOM_EDITION 609
+/* retail Halo PC's caches (build 01.00.00.0564 and its patches): Custom
+Edition's format but for where their resources are. Their tags are all in
+the map, their bitmaps' pixels and sounds' samples in Halo PC's bitmaps.map
+and sounds.map (Custom Edition's resource map format) by offset, and they
+need no loc.map. They load and convert as Custom Edition's do. */
+#define CACHE_FILE_VERSION_HALO_PC 7
 
 /* Halo PC and Custom Edition keep tag data at a fixed address, as the Xbox
 does at 0x803A6000: 0x40440000, above a 0x440000-byte game state at
