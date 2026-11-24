@@ -11,6 +11,8 @@ OBJECTS.C
 #include "mcc_objects.h" /* port: port/linux/game/mcc_objects.c */
 #include "coop_pickups.h" /* port: the host's extra campaign pickups */
 #include "coop_vehicles.h" /* port: the host's extra campaign vehicles */
+#include "scenario_placement.h" /* port: port/linux/game/scenario_placement.c */
+#include "sergeant_johnson.h" /* port: port/linux/game/sergeant_johnson.c */
 
 #include "damage.h"
 #include "light_definitions.h"
@@ -4138,7 +4140,10 @@ long object_new_from_scenario(
 	if (VALID_INDEX(scenario_object->palette_entry_index, palette->count) &&
 		(
 			!object_globals->initial_placement ||
-			!TEST_FLAG(scenario_object->placement_flags, _scenario_object_placement_not_automatic_bit)
+			(!TEST_FLAG(scenario_object->placement_flags, _scenario_object_placement_not_automatic_bit) &&
+				/* port: nor one only a cinematic uses, which it creates
+				(a10's Johnson, in a local game: scenario_placement.c) */
+				!scenario_placement_withheld(scenario_object, palette))
 		))
 	{
 		if (scenario_object->name_index==NONE ||
@@ -4159,6 +4164,9 @@ long object_new_from_scenario(
 					&placement_data.up,
 					&scenario_object->rotation);
 				placement_data.variant_number = scenario_object->variant_number;
+				/* port: a50's Sergeant Johnson (sergeant_johnson.c) */
+				placement_data.variant_number = sergeant_johnson_scenario_variant(
+					scenario_object, definition_index, placement_data.variant_number);
 				
 				result = object_new(&placement_data);
 				if (result!=NONE)
