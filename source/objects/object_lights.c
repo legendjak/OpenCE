@@ -433,7 +433,8 @@ static void find_point_lights_for_object_in_cluster(
 	real *light_intensities,
 	real *light_attenuations,
 	short *light_count,
-	short maximum_light_count);
+	short maximum_light_count,
+	boolean drawn); /* port: (from where the lights are drawn) */
 static void shade_vector3d(
 	real_vector3d const *vertex0,
 	real_vector3d const *vertex1,
@@ -520,6 +521,8 @@ struct lights_port_entry
 {
 	long light_index;
 	real_point3d position;
+	/* where the frame draws it (lights_port_drawn_position) */
+	real_point3d drawn_position;
 	real radius;
 };
 static struct
@@ -533,7 +536,24 @@ static struct
 	short cluster_first_entries[MAXIMUM_CLUSTERS_PER_STRUCTURE];
 	short cluster_entry_counts[MAXIMUM_CLUSTERS_PER_STRUCTURE];
 	struct lights_port_entry entries[LIGHTS_PORT_MAXIMUM_ENTRIES];
+	/* where each of the window's rasterizer lights is drawn, as submitted
+	(lights_preprocess_scene): a light on an object's marker from the pose
+	the frame draws, not the tick's place */
+	real_point3d drawn_positions[MAXIMUM_LIGHTS_PER_WINDOW];
 } lights_port;
+
+/* port: where the frame draws a light submitted for the window (its
+rasterizer light's place), or its own place, the tick's, if it was not:
+the objects a light is chosen for as they are drawn are those it reaches
+from there, as it lights them; the light's own place, which the units'
+illumination is found from as the game is simulated, is left the tick's */
+static real_point3d const *lights_port_drawn_position(
+	struct light_datum const *light)
+{
+	if (light->rasterizer_light_index >= 0 && light->rasterizer_light_index < MAXIMUM_LIGHTS_PER_WINDOW)
+		return &lights_port.drawn_positions[light->rasterizer_light_index];
+	return &light->position;
+}
 struct lights_game_globals *lights_game_globals = NULL;
 short debug_rasterizer_light_count;
 struct lights_globals lights_globals;
@@ -1270,6 +1290,12 @@ void lights_preprocess_scene(
 
 					light->rasterizer_light_index = rasterizer_light_submit(
 						&light_parameters);
+					/* port: where it is drawn (lights_port_drawn_position) */
+					if (light->rasterizer_light_index >= 0 &&
+						light->rasterizer_light_index < MAXIMUM_LIGHTS_PER_WINDOW)
+					{
+						lights_port.drawn_positions[light->rasterizer_light_index] = light_parameters.position;
+					}
 					/* (port: the lights submitted so far: not a light the
 					window had no room for (MAXIMUM_LIGHTS_PER_WINDOW), whose
 					index is NONE: that made the count 0, and every object
@@ -2061,7 +2087,9 @@ void light_reconnect_to_map(
 }
 
 /* a light of a cluster, for find_point_lights_for_object_in_cluster: as
-the Xbox's loop does each, marking it (so its other clusters pass it over) */
+the Xbox's loop does each, marking it (so its other clusters pass it over);
+port: from where the frame draws it, for an object drawn (drawn:
+lights_port_drawn_position) */
 static void find_point_light_for_object(
 	long object_index,
 	long light_index,
@@ -2071,7 +2099,8 @@ static void find_point_light_for_object(
 	real *light_intensities,
 	real *light_attenuations,
 	short *light_count,
-	short maximum_light_count)
+	short maximum_light_count,
+	boolean drawn)
 {
 	if (light_unmarked(light_index))
 	{
@@ -2082,7 +2111,7 @@ static void find_point_light_for_object(
 				|| !TEST_FLAG(light_definition_get(light->definition_index)->flags,
 					_light_definition_dont_light_own_object_bit)))
 		{
-			real distance = distance3d(&light->position, center);
+			real distance = distance3d(drawn ? lights_port_drawn_position(light) : &light->position, center);
 
 			if (distance < radius + light->radius)
 			{
@@ -2177,6 +2206,7 @@ static boolean lights_port_cluster(
 			entry = &lights_port.entries[lights_port.entry_count++];
 			entry->light_index = light_index;
 			entry->position = light->position;
+			entry->drawn_position = *lights_port_drawn_position(light);
 			entry->radius = light->radius;
 		}
 		lights_port.cluster_generations[cluster_index] = generation;
@@ -2199,7 +2229,8 @@ static void find_point_lights_for_object_in_cluster(
 	real *light_intensities,
 	real *light_attenuations,
 	short *light_count,
-	short maximum_light_count)
+	short maximum_light_count,
+	boolean drawn)
 {
 	long light_index;
 	long reference_index;
@@ -2223,23 +2254,24 @@ static void find_point_lights_for_object_in_cluster(
 		for (entry_index = first_entry; entry_index < first_entry + entry_count; entry_index++)
 		{
 			struct lights_port_entry const *entry = &lights_port.entries[entry_index];
+			real_point3d const *position = drawn ? &entry->drawn_position : &entry->position;
 			real reach = radius + entry->radius;
 			real bound = reach * 1.000001f;
 			real offset;
 
-			offset = entry->position.x - center->x;
+			offset = position->x - center->x;
 			if (offset > bound || -offset > bound)
 				continue;
-			offset = entry->position.y - center->y;
+			offset = position->y - center->y;
 			if (offset > bound || -offset > bound)
 				continue;
-			offset = entry->position.z - center->z;
+			offset = position->z - center->z;
 			if (offset > bound || -offset > bound)
 				continue;
-			if (!(distance3d(&entry->position, center) < reach))
+			if (!(distance3d(position, center) < reach))
 				continue;
 			find_point_light_for_object(object_index, entry->light_index, center, radius, light_indices,
-				light_intensities, light_attenuations, light_count, maximum_light_count);
+				light_intensities, light_attenuations, light_count, maximum_light_count, drawn);
 		}
 		return;
 	}
@@ -2248,7 +2280,7 @@ static void find_point_lights_for_object_in_cluster(
 		light_index = cluster_partition_get_next_datum(&light_cluster_partition, &reference_index))
 	{
 		find_point_light_for_object(object_index, light_index, center, radius, light_indices, light_intensities,
-			light_attenuations, light_count, maximum_light_count);
+			light_attenuations, light_count, maximum_light_count, drawn);
 	}
 
 	return;
@@ -2329,7 +2361,8 @@ void lights_illumination_at_point(
 			light_intensities,
 			light_attenuations,
 			&light_count,
-			MAXIMUM_RENDERED_POINT_LIGHTS);
+			MAXIMUM_RENDERED_POINT_LIGHTS,
+			FALSE); /* port: (as simulated, from the lights' own places) */
 		light_marker_end();
 		for (light_index = 0; light_index < light_count; light_index++)
 		{
@@ -2379,7 +2412,8 @@ void lights_prepare_for_object_dynamic(
 			light_intensities,
 			light_attenuations,
 			&lighting->point_light_count,
-			MAXIMUM_RENDERED_POINT_LIGHTS);
+			MAXIMUM_RENDERED_POINT_LIGHTS,
+			TRUE); /* port: (as drawn: lights_port_drawn_position) */
 	}
 	light_marker_end();
 	/* (port: and a light the window had no room for, with no rasterizer
