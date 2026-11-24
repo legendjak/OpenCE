@@ -102,6 +102,22 @@ int main(int argc, char **argv)
 			drawn->position.x);
 		return 0;
 	}
+	/* the view given back to the player before tick 12's first frame, the
+	same cameras: that frame's snapshot is the player's, the one before it the
+	cinematic's, so it is a cut, not a blend from the cinematic's camera */
+	CASE("handover before the tick's first frame")
+	{
+		perspective = _director_perspective_first_person;
+		drawn = frame(12, 0.1f, &player);
+		CHECK(fabs(drawn->position.x - 2.f) < 1e-4f, "drawn at %f, not the player's 2", drawn->position.x);
+		drawn = frame(12, 0.6f, &player);
+		CHECK(fabs(drawn->position.x - 2.f) < 1e-4f, "later in the tick at %f", drawn->position.x);
+		/* and blended from there from the next tick */
+		drawn = frame(13, 0.5f, &player_on);
+		CHECK(drawn->position.x > 2.f && drawn->position.x < 2.1f, "the next tick not blended: %f",
+			drawn->position.x);
+		return 0;
+	}
 
 	return 2;
 }

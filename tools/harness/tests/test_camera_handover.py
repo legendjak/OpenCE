@@ -11,9 +11,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from harness import CHECK_FAILED, build, function, mutated, read, run, structure  # noqa: E402
 
-CASES = ["blended", "handover"]
+CASES = ["blended", "handover", "handover before the tick's first frame"]
 
 NEGATIVE_CONTROLS = {
+    # a new tick's snapshot blended from another perspective's
+    "new-tick-handover": (("&&\n\t\t\tcamera->perspective == director_get_perspective(local_player_index);", ";"),
+                          "handover before the tick's first frame"),
     # the perspective's change not looked at
     "no-handover": (("else if (camera->perspective != director_get_perspective(local_player_index))",
                      "else if (0)"), "handover"),

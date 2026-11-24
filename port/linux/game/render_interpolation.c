@@ -1150,9 +1150,12 @@ static struct observer_result const *render_interpolation_blended_camera(
 			camera->correction = *global_zero_vector3d;
 			camera->correction_pending = *global_zero_vector3d;
 		}
-		/* (none from before a cut the scripts made since the last snapshot) */
+		/* (none from before a cut the scripts made since the last snapshot,
+		nor from another perspective's: the view changed hands since the last
+		snapshot, before this tick's first frame, as it can after it, below) */
 		camera->has_previous = camera->valid &&
-			!(interpolation_cut_tick != NONE && interpolation_cut_tick > camera->tick);
+			!(interpolation_cut_tick != NONE && interpolation_cut_tick > camera->tick) &&
+			camera->perspective == director_get_perspective(local_player_index);
 		camera->previous = camera->latest;
 		camera->latest = *observer;
 		camera->previous_taken = camera->latest_taken;
