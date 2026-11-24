@@ -12,6 +12,11 @@ legs folded into a lid over the waist, the whole set back a little behind
 the eye so the camera never looks out through the hips. The body itself, its hit boxes and markers, are the game's
 as ever. The legs are drawn in the world with the world's camera, so they
 keep their place and size at any field of view.
+
+A mirror (a structure's dynamic mirror, drawn before the window's own view)
+draws the whole body, as the game always has, and what it carries: they are
+set back as far as the legs, the way the window's own view sets the legs
+back, so that the legs meet their reflection.
 */
 
 #include "cseries.h"
@@ -23,6 +28,9 @@ keep their place and size at any field of view.
 #include "rasterizer/rasterizer.h"
 #include <xtl.h>
 #include "rasterizer/xbox/rasterizer_xbox.h"
+#include "game/players.h"
+#include "camera/director.h"
+#include "camera/camera_scripting.h"
 
 #include "object_mesh.h"
 
@@ -51,8 +59,30 @@ chest closes the waist as a low lid, flush with the belt (the body's model is
 a hollow shell: folded higher, it stood up as a cone before the eye; lower,
 it sank into a funnel) */
 #define FIRST_PERSON_LEGS_LID_UP 0.01f
+/* how far past the near clip plane the legs' surface is kept from the eye
+(world units: about 9 cm), more than a leg's triangles are across, so that
+none of them passes nearer: a crouched walk raises the knees to the eye,
+and the near clip plane cut them open, the legs seen from inside */
+#define FIRST_PERSON_LEGS_CLEARANCE 0.03f
+/* the most legs' vertices near the eye that are looked at (more: the set
+back is the most any of them needs) */
+#define FIRST_PERSON_LEGS_MAXIMUM_NEAR 512
 
 static real_matrix4x3 first_person_legs_matrices[FIRST_PERSON_LEGS_MAXIMUM_NODES];
+
+/* while a mirror is drawn (first_person_legs_mirror_view): the local player
+of the window it is seen in, NONE otherwise, and the rasterizer's camera and
+frustum the window's own view is drawn with */
+static short first_person_legs_mirror_local_player_index = NONE;
+static struct render_camera first_person_legs_mirror_camera;
+static struct render_frustum first_person_legs_mirror_frustum;
+/* the body set back in the mirror, the mirror's scene (render.scene_index)
+and how far it was set back, for what it carries */
+static long first_person_legs_mirror_unit_index = NONE;
+static long first_person_legs_mirror_scene_index = NONE;
+static real_vector3d first_person_legs_mirror_offset;
+static real_matrix4x3 first_person_legs_mirror_matrices[FIRST_PERSON_LEGS_MAXIMUM_NODES];
+
 static boolean first_person_legs_enabled(
 	void)
 {
@@ -199,21 +229,123 @@ static boolean first_person_legs_waist(
 	return first_person_legs_waist_found;
 }
 
-/* the pose to draw the legs with: the body's own (as it is drawn now), all
-but the legs folded into the hips, the whole set back behind the eye; NULL:
-none (a body without named legs) */
-real_matrix4x3 const *first_person_legs_node_matrices(
+/* the least set back, from set_back on, at which every vertex of the legs
+alone (bound to the hips, thighs, calves and feet only) is farther from the
+eye of the view drawn with camera and frustum than its near clip plane and
+FIRST_PERSON_LEGS_CLEARANCE: set back level (back, a unit vector), a vertex
+within that of the line through the eye is too near for the set backs
+between where it comes that near and where it has gone that far behind */
+static real first_person_legs_clear_of_eye(
+	struct object_mesh const *mesh,
+	struct model const *model,
+	real_matrix4x3 const *nodes,
+	struct render_camera const *camera,
+	struct render_frustum const *frustum,
+	real_vector3d const *back,
+	real set_back)
+{
+	static real near_from[FIRST_PERSON_LEGS_MAXIMUM_NEAR];
+	static real near_to[FIRST_PERSON_LEGS_MAXIMUM_NEAR];
+	boolean legs[FIRST_PERSON_LEGS_MAXIMUM_NODES];
+	real_matrix4x3 skins[FIRST_PERSON_LEGS_MAXIMUM_NODES];
+	real clearance = frustum->z_near + FIRST_PERSON_LEGS_CLEARANCE;
+	real_point3d const *eye = &camera->position;
+	short near_count = 0;
+	boolean moved = TRUE;
+	short node;
+	long index;
+
+	for (node = 0; node < mesh->node_count && node < FIRST_PERSON_LEGS_MAXIMUM_NODES; node++)
+	{
+		legs[node] = node < model->nodes.count &&
+			first_person_legs_node(TAG_BLOCK_GET_ELEMENT(&model->nodes, node, struct model_node)->name);
+		if (legs[node])
+			matrix4x3_multiply(&nodes[node], &mesh->inverse[node], &skins[node]);
+	}
+	for (index = 0; index < mesh->vertex_count; index++)
+	{
+		struct object_mesh_vertex const *vertex = &mesh->vertices[index];
+		short first = vertex->nodes[0];
+		short second = vertex->nodes[1];
+		real_point3d point;
+		real_vector3d from_eye;
+		real along;
+		real across;
+
+		if (first >= mesh->node_count || first >= FIRST_PERSON_LEGS_MAXIMUM_NODES || !legs[first] ||
+			(vertex->weight < 32767 &&
+				(second >= mesh->node_count || second >= FIRST_PERSON_LEGS_MAXIMUM_NODES || !legs[second])))
+		{
+			continue;
+		}
+		matrix4x3_transform_point(&skins[first], &vertex->position, &point);
+		if (vertex->weight < 32767)
+		{
+			real weight = (real)vertex->weight / 32767.f;
+			real_point3d other;
+
+			matrix4x3_transform_point(&skins[second], &vertex->position, &other);
+			point.x = point.x * weight + other.x * (1.f - weight);
+			point.y = point.y * weight + other.y * (1.f - weight);
+			point.z = point.z * weight + other.z * (1.f - weight);
+		}
+		vector_from_points3d(eye, &point, &from_eye);
+		along = dot_product3d(&from_eye, back);
+		across = dot_product3d(&from_eye, &from_eye) - along * along;
+		if (across < clearance * clearance)
+		{
+			real reach = square_root(clearance * clearance - across);
+
+			if (near_count == FIRST_PERSON_LEGS_MAXIMUM_NEAR)
+			{
+				/* (too many to look at one by one: as far back as the farthest needs) */
+				if (reach - along > set_back)
+					set_back = reach - along;
+				continue;
+			}
+			near_from[near_count] = -along - reach;
+			near_to[near_count] = -along + reach;
+			near_count++;
+		}
+	}
+	/* (each set back a vertex is too near for moves it on past them) */
+	while (moved)
+	{
+		moved = FALSE;
+		for (index = 0; index < near_count; index++)
+		{
+			if (set_back > near_from[index] && set_back < near_to[index])
+			{
+				set_back = near_to[index];
+				moved = TRUE;
+			}
+		}
+	}
+	return set_back;
+}
+
+/* the pose to draw the legs with, into matrices: the body's own (as it is
+drawn now), all but the legs folded into the hips (fold; else the whole
+body), the whole set back behind the eye of the view drawn with camera and
+frustum, by *offset; NULL: none (a body without named legs) */
+static real_matrix4x3 const *first_person_legs_pose(
 	long object_index,
-	real_matrix4x3 const *nodes)
+	real_matrix4x3 const *nodes,
+	struct render_camera const *camera,
+	struct render_frustum const *frustum,
+	boolean fold,
+	real_matrix4x3 *matrices,
+	real_vector3d *offset)
 {
 	struct object_datum *object = object_try_and_get(object_index);
 	struct object_definition *definition;
 	struct model const *model;
+	struct object_mesh const *mesh;
 	long count;
 	short pelvis = NONE;
 	short thighs = 0;
 	short index;
-	real_point3d fold;
+	real_point3d waist;
 	real_vector3d back;
 	real_matrix4x3 skin;
 	real set_back;
@@ -240,19 +372,19 @@ real_matrix4x3 const *first_person_legs_node_matrices(
 	if (pelvis == NONE || thighs == 0)
 		return NULL;
 	/* (the waist's middle as the hips are posed now) */
+	mesh = object_mesh_get(object_index);
 	{
-		struct object_mesh const *mesh = object_mesh_get(object_index);
 		real_point3d middle;
 
 		if (!mesh || pelvis >= mesh->node_count || !first_person_legs_waist(mesh, model, pelvis, &middle))
 			return NULL;
 		matrix4x3_multiply(&nodes[pelvis], &mesh->inverse[pelvis], &skin);
-		matrix4x3_transform_point(&skin, &middle, &fold);
+		matrix4x3_transform_point(&skin, &middle, &waist);
 	}
 
 	/* (set back away from the way the eye looks, level) */
-	back.i = -global_window_parameters.camera.forward.i;
-	back.j = -global_window_parameters.camera.forward.j;
+	back.i = -camera->forward.i;
+	back.j = -camera->forward.j;
 	back.k = 0.f;
 	if (normalize3d(&back) <= 0.f)
 		back = *global_zero_vector3d;
@@ -263,7 +395,7 @@ real_matrix4x3 const *first_person_legs_node_matrices(
 	thighs, knees and feet seen as they swing forward) */
 	set_back = FIRST_PERSON_LEGS_SET_BACK;
 	{
-		real_plane3d const *bottom = &global_window_parameters.frustum.world_planes[2];
+		real_plane3d const *bottom = &frustum->world_planes[2];
 		real toward = dot_product3d(&bottom->n, &back);
 		short corner;
 
@@ -285,25 +417,136 @@ real_matrix4x3 const *first_person_legs_node_matrices(
 				}
 			}
 		}
+		/* (and as far back as keeps the legs clear of the eye: a crouched
+		walk's knees) */
+		if (back.i != 0.f || back.j != 0.f)
+			set_back = first_person_legs_clear_of_eye(mesh, model, nodes, camera, frustum, &back, set_back);
 		if (set_back > FIRST_PERSON_LEGS_SET_BACK_MAXIMUM)
 			set_back = FIRST_PERSON_LEGS_SET_BACK_MAXIMUM;
 	}
 
+	offset->i = back.i * set_back;
+	offset->j = back.j * set_back;
+	offset->k = back.k * set_back;
 	for (index = 0; index < count; index++)
 	{
 		struct model_node const *node = TAG_BLOCK_GET_ELEMENT(&model->nodes, index, struct model_node);
-		real_matrix4x3 *matrix = &first_person_legs_matrices[index];
+		real_matrix4x3 *matrix = &matrices[index];
 
 		*matrix = nodes[index];
 		/* (the root kept: it is the body's frame, not a part of it) */
-		if (node->parent_node_index != NONE && !first_person_legs_node(node->name))
+		if (fold && node->parent_node_index != NONE && !first_person_legs_node(node->name))
 		{
-			matrix->position = fold;
+			matrix->position = waist;
 			matrix->scale = 0.001f;
 		}
-		matrix->position.x += back.i * set_back;
-		matrix->position.y += back.j * set_back;
-		matrix->position.z += back.k * set_back;
+		matrix->position.x += offset->i;
+		matrix->position.y += offset->j;
+		matrix->position.z += offset->k;
 	}
-	return first_person_legs_matrices;
+	return matrices;
+}
+
+/* the pose to draw the legs with in the window's own view: the body's
+own, all but the legs folded into the hips, the whole set back behind the
+eye; NULL: none (a body without named legs) */
+real_matrix4x3 const *first_person_legs_node_matrices(
+	long object_index,
+	real_matrix4x3 const *nodes)
+{
+	real_vector3d offset;
+
+	return first_person_legs_pose(object_index, nodes, &global_window_parameters.camera,
+		&global_window_parameters.frustum, TRUE, first_person_legs_matrices, &offset);
+}
+
+/* a mirror is drawn for the window of local_player_index, whose own view
+is drawn after it with camera and frustum (render.c); NONE: the mirror is
+done */
+void first_person_legs_mirror_view(
+	short local_player_index,
+	struct render_camera const *camera,
+	struct render_frustum const *frustum)
+{
+	first_person_legs_mirror_local_player_index = NONE;
+	first_person_legs_mirror_unit_index = NONE;
+	if (local_player_index == NONE || !camera || !frustum)
+		return;
+	first_person_legs_mirror_local_player_index = local_player_index;
+	first_person_legs_mirror_camera = *camera;
+	first_person_legs_mirror_frustum = *frustum;
+}
+
+/* the body whose legs the mirror's window draws (as render_objects.c's
+object_is_first_person_camera finds it), if it is the object or carries it
+(as its child, or its child's); NONE otherwise */
+static long first_person_legs_mirror_body(
+	long object_index)
+{
+	long player_index = local_player_get_player_index(first_person_legs_mirror_local_player_index);
+	long unit_index = player_index != NONE ? player_get(player_index)->unit_index : NONE;
+	struct object_datum *object = object_try_and_get(object_index);
+	short depth;
+
+	/* (what it carries: its children, their children) */
+	for (depth = 0; object && object->object.parent_object_index != NONE && depth < 8; depth++)
+	{
+		object_index = object->object.parent_object_index;
+		object = object_try_and_get(object_index);
+	}
+	if (!object || object->object.parent_object_index != NONE)
+		return NONE;
+	if ((object_index == unit_index &&
+			director_get_perspective(first_person_legs_mirror_local_player_index) == _director_perspective_first_person) ||
+		scripted_camera_object_is_first_person_camera(object_index))
+	{
+		return first_person_legs_wanted(object_index) ? object_index : NONE;
+	}
+	return NONE;
+}
+
+/* the pose to draw an object with in a mirror: the body whose legs the
+window's own view draws, whole, set back as far as the legs are, and what
+it carries set back with it; any other object (or outside a mirror) as it
+is (nodes) */
+real_matrix4x3 const *first_person_legs_mirror_node_matrices(
+	long object_index,
+	real_matrix4x3 const *nodes)
+{
+	struct object_datum *object = object_try_and_get(object_index);
+	long body_index;
+	long count;
+	long index;
+
+	if (first_person_legs_mirror_local_player_index == NONE || !object || !nodes)
+		return nodes;
+	body_index = first_person_legs_mirror_body(object_index);
+	if (body_index == NONE)
+		return nodes;
+	if (body_index == object_index)
+	{
+		/* (the body is drawn before what it carries) */
+		first_person_legs_mirror_unit_index = NONE;
+		if (!first_person_legs_pose(object_index, nodes, &first_person_legs_mirror_camera,
+			&first_person_legs_mirror_frustum, FALSE, first_person_legs_mirror_matrices, &first_person_legs_mirror_offset))
+		{
+			return nodes;
+		}
+		first_person_legs_mirror_unit_index = object_index;
+		first_person_legs_mirror_scene_index = render.scene_index;
+		return first_person_legs_mirror_matrices;
+	}
+	if (first_person_legs_mirror_unit_index != body_index || first_person_legs_mirror_scene_index != render.scene_index)
+		return nodes;
+	count = object->object.node_matrices.size / (long)sizeof(real_matrix4x3);
+	if (count <= 0 || count > FIRST_PERSON_LEGS_MAXIMUM_NODES)
+		return nodes;
+	for (index = 0; index < count; index++)
+	{
+		first_person_legs_mirror_matrices[index] = nodes[index];
+		first_person_legs_mirror_matrices[index].position.x += first_person_legs_mirror_offset.i;
+		first_person_legs_mirror_matrices[index].position.y += first_person_legs_mirror_offset.j;
+		first_person_legs_mirror_matrices[index].position.z += first_person_legs_mirror_offset.k;
+	}
+	return first_person_legs_mirror_matrices;
 }
