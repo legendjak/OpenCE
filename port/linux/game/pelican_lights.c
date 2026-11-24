@@ -30,6 +30,8 @@ the drawing changes, nothing played or sent between machines.
 #include "memory/data.h"
 #include "shaders/shader_definitions.h"
 #include "tag_files/tag_groups.h"
+#include "custom_edition_cache.h"
+#include "mcc_cache.h"
 
 #include "pelican_lights.h"
 
@@ -75,7 +77,10 @@ short pelican_lights_tags_loaded(
 
 	for (index = 0; index < NUMBEROF(pelican_lights_shader_names); index++)
 	{
-		long shader_index = map_name && !csstrcasecmp(map_name, PELICAN_LIGHTS_UNCHANGED_MAP) ?
+		/* (the Xbox maps' tags only: a Custom Edition or MCC map's tag of that
+		name can be its own, made otherwise, as marine_fingers.c leaves them) */
+		long shader_index = (map_name && !csstrcasecmp(map_name, PELICAN_LIGHTS_UNCHANGED_MAP)) ||
+			custom_edition_cache_tags_loaded() || mcc_cache_tags_loaded() ?
 			NONE :
 			tag_loaded(PELICAN_LIGHTS_TAG, pelican_lights_shader_names[index]);
 		struct pelican_lights_chicago *chicago = shader_index != NONE ?

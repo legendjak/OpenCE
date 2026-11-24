@@ -59,6 +59,12 @@ static void normalize3d(real_vector3d *vector)
 	}
 }
 
+/* the map's kind: an Xbox map's unless a case says so (the fix leaves a
+Custom Edition or MCC map's tags as they are) */
+static int test_custom_edition_map, test_mcc_map;
+static int custom_edition_cache_tags_loaded(void) { return test_custom_edition_map; }
+static int mcc_cache_tags_loaded(void) { return test_mcc_map; }
+
 #include "under_test.inc"
 
 static boolean near(real a, real b)

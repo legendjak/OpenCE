@@ -26,6 +26,8 @@ agree on how a projectile responds, so this is in a network version of its own.
 #include "objects/damage_resistances.h"
 #include "physics/collision_model_definitions.h"
 #include "tag_files/tag_groups.h"
+#include "custom_edition_cache.h"
+#include "mcc_cache.h"
 
 /* ---------- constants */
 
@@ -60,6 +62,12 @@ void overshield_material_tags_loaded(
 	struct tag_iterator iterator;
 	long equipment_index;
 
+	/* (the Xbox maps' tags only: a Custom Edition or MCC map's tag of that
+	name can be its own, made otherwise, as marine_fingers.c leaves them) */
+	if (custom_edition_cache_tags_loaded() || mcc_cache_tags_loaded())
+	{
+		return;
+	}
 	tag_iterator_new(&iterator, EQUIPMENT_DEFINITION_TAG);
 	while ((equipment_index = tag_iterator_next(&iterator)) != NONE)
 	{

@@ -28,6 +28,12 @@ static long tag_iterator_next(struct tag_iterator *iterator)
 static struct equipment_definition *equipment_definition_get(long index) { return &equipment[index]; }
 static struct collision_model *collision_model_definition_get(long index) { return &collision_models[index]; }
 
+/* the map's kind: an Xbox map's unless a case says so (the fix leaves a
+Custom Edition or MCC map's tags as they are) */
+static int test_custom_edition_map, test_mcc_map;
+static int custom_edition_cache_tags_loaded(void) { return test_custom_edition_map; }
+static int mcc_cache_tags_loaded(void) { return test_mcc_map; }
+
 #include "under_test.inc"
 
 static void material_set(struct damage_resistance_material *material, char const *name, short type)
@@ -98,6 +104,22 @@ int main(int argc, char **argv)
         equipment_add(_equipment_powerup_overshield, 0);
         overshield_material_tags_loaded();
         CHECK(material_is(&overshield, "force field", _material_engineer_force_field), "with no active camouflage");
+    }
+    CASE("custom maps") {
+        /* a Custom Edition or MCC map's overshield of the same make: its own, left as it is */
+        struct damage_resistance_material overshield;
+        material_set(&overshield, "force field", _material_dirt);
+        collision_model_set(0, &overshield, 1);
+        equipment_count = 0;
+        equipment_add(_equipment_powerup_overshield, 0);
+        test_custom_edition_map = 1;
+        overshield_material_tags_loaded();
+        CHECK(material_is(&overshield, "force field", _material_dirt), "a Custom Edition map's changed");
+        test_custom_edition_map = 0;
+        test_mcc_map = 1;
+        overshield_material_tags_loaded();
+        CHECK(material_is(&overshield, "force field", _material_dirt), "an MCC map's changed");
+        test_mcc_map = 0;
     }
     CASE("other materials") {
         struct damage_resistance_material materials[5];

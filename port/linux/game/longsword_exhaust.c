@@ -29,6 +29,8 @@ as it is. Only the drawing changes, nothing played or sent between machines.
 #include "objects/objects.h"
 #include "rasterizer/rasterizer.h"
 #include "tag_files/tag_groups.h"
+#include "custom_edition_cache.h"
+#include "mcc_cache.h"
 
 #include "longsword_exhaust.h"
 
@@ -51,7 +53,11 @@ static long longsword_exhaust_flare_index = NONE;
 void longsword_exhaust_tags_loaded(
 	void)
 {
-	long flare_index = tag_loaded(LONGSWORD_EXHAUST_FLARE_TAG, LONGSWORD_EXHAUST_FLARE_NAME);
+	/* (the Xbox maps' tags only: a Custom Edition or MCC map's tag of that
+	name can be its own, made otherwise, as marine_fingers.c leaves them) */
+	long flare_index = custom_edition_cache_tags_loaded() || mcc_cache_tags_loaded() ?
+		NONE :
+		tag_loaded(LONGSWORD_EXHAUST_FLARE_TAG, LONGSWORD_EXHAUST_FLARE_NAME);
 
 	longsword_exhaust_flare_index = flare_index != NONE &&
 		rasterizer_lens_flare_face_light_direction(

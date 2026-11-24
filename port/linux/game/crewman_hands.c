@@ -46,6 +46,8 @@ level.
 #include "rasterizer/rasterizer_geometry.h"
 #include "rasterizer/rasterizer_model_types.h"
 #include "tag_files/tag_groups.h"
+#include "custom_edition_cache.h"
+#include "mcc_cache.h"
 
 #include <xtl.h>
 
@@ -439,6 +441,12 @@ void crewman_hands_tags_loaded(
 	crewman_hands_model_index = NONE;
 	crewman_hands_vertex_counts[_crewman_hands_right_arm] = 0;
 	crewman_hands_vertex_counts[_crewman_hands_left_arm] = 0;
+	/* (the Xbox maps' tags only: a Custom Edition or MCC map's tag of that
+	name can be its own, made otherwise, as marine_fingers.c leaves them) */
+	if (custom_edition_cache_tags_loaded() || mcc_cache_tags_loaded())
+	{
+		return;
+	}
 	if (model_index == NONE)
 	{
 		return;

@@ -10,10 +10,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from harness import CHECK_FAILED, build, enum_with, function, mutated, read, run, structure  # noqa: E402
 
-CASES = ["maps", "overshield only", "other materials", "not an overshield", "no collision"]
+CASES = ["maps", "overshield only", "custom maps", "other materials", "not an overshield", "no collision"]
 
 # a fault in the code and the case that must catch it
 NEGATIVE_CONTROLS = {
+    # a Custom Edition or MCC map's tags changed as an Xbox map's
+    "any-map": (("\tif (custom_edition_cache_tags_loaded() || mcc_cache_tags_loaded())\n\t{\n\t\treturn;\n\t}\n", ""),
+                "custom maps"),
     # the material left as it was
     "not-fixed": (("\tmaterial->material_type = _material_engineer_force_field;\n", ""), "maps"),
     # any material left dirt, whatever its name

@@ -39,6 +39,8 @@ emotions' frames level the lip already.
 #include "rasterizer/rasterizer_model_types.h"
 #include "tag_files/tag_files.h"
 #include "tag_files/tag_groups.h"
+#include "custom_edition_cache.h"
+#include "mcc_cache.h"
 
 #include <xtl.h>
 
@@ -287,6 +289,12 @@ void captain_mouth_tags_loaded(
 	real_vector3d offset;
 
 	captain_mouth_model_index = NONE;
+	/* (the Xbox maps' tags only: a Custom Edition or MCC map's tag of that
+	name can be its own, made otherwise, as marine_fingers.c leaves them) */
+	if (custom_edition_cache_tags_loaded() || mcc_cache_tags_loaded())
+	{
+		return;
+	}
 	if (model_index == NONE)
 	{
 		return;
