@@ -13,6 +13,7 @@
 #include "tag_files/tag_groups.h"
 #include "text/draw_string.h"
 #include "rasterizer/rasterizer.h"
+#include "cache/texture_cache.h"
 #include "../../third_party/zlib/zlib_prefixed.h"
 #include <string.h>
 #include <wchar.h>
@@ -20,6 +21,7 @@
 int config_boolean(char const *name);
 char const *config_string(char const *name);
 unsigned long config_changes(void);
+void platform_log(char const *format, ...);
 struct bitmap_data *hud_hires_button_bitmap(short style, short slot);
 
 static boolean menu_button_glyph_enabled(short button, short port)
@@ -273,20 +275,32 @@ void menu_button_glyph_keyboard_legend(long background_index, struct bitmap_data
 
     if (background_index == NONE || !background || background->width != 1024 || background->height != 512)
         return;
-    /* (its pixels only once they are in memory: until then, as it is) */
-    if (background->cache_block_index == NONE || !background->base_address)
+    /* (its pixels only once the texture cache has read them: a texture's
+    cache block, and its base address, are given it as its read starts, and
+    its pixels checked then were not yet its own, the stock background taken
+    for another until the keyboard closed. Until then, as it is) */
+    if (!background->base_address ||
+        !_texture_cache_bitmap_get_hardware_format((struct bitmap_data *)background, FALSE, FALSE))
         return;
     if (keyboard_legend.background_index != background_index || keyboard_legend.background != background ||
         keyboard_legend.base_address != background->base_address || keyboard_legend.checked_at != config_changes())
     {
+        unsigned long crc = 0;
+
         keyboard_legend.background_index = background_index;
         keyboard_legend.background = background;
         keyboard_legend.base_address = background->base_address;
         keyboard_legend.checked_at = config_changes();
-        keyboard_legend.stock = config_boolean("display.high_res_text") &&
+        keyboard_legend.stock = FALSE;
+        if (config_boolean("display.high_res_text") &&
             !strcmp(tag_get_name(background_index), "ui\\bkd_virtual_keyboard") &&
-            bitmap_mipmap_get_pixel_data_size((struct bitmap_data *)background, 0) == 1024L * 512L &&
-            crc32(0L, (Bytef const *)background->base_address, 1024U * 512U) == KEYBOARD_BACKGROUND_STOCK_CRC;
+            bitmap_mipmap_get_pixel_data_size((struct bitmap_data *)background, 0) == 1024L * 512L)
+        {
+            crc = crc32(0L, (Bytef const *)background->base_address, 1024U * 512U);
+            keyboard_legend.stock = crc == KEYBOARD_BACKGROUND_STOCK_CRC;
+            platform_log("virtual keyboard: background %08lx, %s", crc, keyboard_legend.stock ?
+                "the stock one: its B and A drawn from their redraws" : "not the stock one: drawn as it is");
+        }
         for (i = 0; i < (short)NUMBEROF(icons); i++)
             keyboard_legend.icons[i] = keyboard_legend.stock ? tag_loaded('bitm', icons[i].tag) : NONE;
     }

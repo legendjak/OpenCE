@@ -58,9 +58,14 @@ int config_boolean(char const *n){
  assert(!strcmp(n,"display.menu_button_glyphs"));return enabled;}
 char const *config_string(char const *n){assert(!strcmp(n,"display.menus"));return menus;}
 unsigned long config_changes(void){return changes;}
+/* whether the texture cache has read the background's pixels: until then its memory holds others' */
+static int background_loaded=1;
+static void *_texture_cache_bitmap_get_hardware_format(struct bitmap_data *b,int block,int load){
+ assert(b==&background_bitmap&&!block&&!load);return background_loaded?(void *)b:NULL;}
+static void platform_log(char const *format,...){(void)format;}
 static unsigned long crc32(unsigned long crc,Bytef const *b,unsigned n){
  assert(!crc&&n==1024*512&&(b==background_pixels[0]||b==background_pixels[1]));
- return background_crc[b==background_pixels[1]];}
+ return background_loaded?background_crc[b==background_pixels[1]]:0xdeadbeefUL;}
 static long bitmap_mipmap_get_pixel_data_size(struct bitmap_data *b,short level){
  assert(b==&background_bitmap&&!level);return (long)b->width*b->height;}
 static int keyboard_prompt_enabled(short p){observed_port=p;return keyboard;}
@@ -173,10 +178,17 @@ int main(void){
  menu_button_glyph_keyboard_legend(40,NULL);
  /* nor on a map's own background of the stock one's name and size, its pixels not the stock ones */
  background_bitmap.base_address=background_pixels[1];menu_button_glyph_keyboard_legend(40,&background_bitmap);
- /* nor before the background's pixels are in memory */
- background_bitmap.base_address=background_pixels[0];background_bitmap.cache_block_index=NONE;
- menu_button_glyph_keyboard_legend(40,&background_bitmap);background_bitmap.cache_block_index=7;
+ assert(!legend_draws);
+ /* the stock background given its memory as the texture cache starts reading it, and drawn before its pixels
+ are read: nothing until they are, and then its B and A, the memory's earlier contents not kept as its check */
+ background_bitmap.base_address=background_pixels[0];background_loaded=0;
+ menu_button_glyph_keyboard_legend(40,&background_bitmap);
+ assert(!legend_draws);
+ background_loaded=1;
+ menu_button_glyph_keyboard_legend(40,&background_bitmap);
+ assert(legend_draws==2);
  /* nor with a button bitmap of another size */
+ legend_draws=0;
  button_bitmap.width=16;menu_button_glyph_keyboard_legend(40,&background_bitmap);button_bitmap.width=32;
  assert(!legend_draws);
  /* and the stock background's again */
