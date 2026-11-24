@@ -131,6 +131,8 @@ symbols in this file:
 #include "hs_console_state.h" /* port: port/linux/game/hs_console_state.inl */
 /* port: object_bounds_cache.c's */
 void object_bounds_cache_invalidate(void);
+/* port: lightning.c's: no bolt's seed kept from before a load */
+void lightning_tick_seeds_forget(void);
 /* port: port/linux/game/animation_blend_space.c's */
 void animation_blend_space_forget(void);
 void animation_blend_space_loaded(void);
@@ -239,7 +241,10 @@ static game_state_after_load_proc after_load_procs[] =
 	/* port: (vehicle_riding.c: also for a revert in the same structure) */
 	bipeds_riding_latch,
 	/* port: a cinematic's skip goes back to the checkpoint gone back to */
-	cinematic_port_checkpoint
+	cinematic_port_checkpoint,
+	/* port: a lightning's bolt drawn anew, not from a seed kept for the
+	same tick before the load (lightning.c) */
+	lightning_tick_seeds_forget
 };
 
 /* ---------- public code */

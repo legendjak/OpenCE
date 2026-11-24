@@ -68,3 +68,15 @@ def test_negative_control(control):
     fault, case = NEGATIVE_CONTROLS[control]
     status, output = run(build("lightning_tick_shape", generated(fault)), case)
     assert status == CHECK_FAILED, f"the lightning with a fault ({control}) passed '{case}': the test cannot see it"
+
+
+def test_forgotten_after_a_load():
+    """No bolt's seed is kept across a game state's load (a checkpoint can go back to a tick a seed was kept for) or
+    as a map is left: game_state.c's after_load_procs and lightnings_dispose_from_old_map forget them all."""
+    lightning = read("source/objects/widgets/lightning.c").replace("\r\n", "\n")
+    assert "csmemset(lightning_tick_seeds, 0, sizeof(lightning_tick_seeds));" in function(
+        lightning, "lightning_tick_seeds_forget")
+    assert "lightning_tick_seeds_forget();" in function(lightning, "lightnings_dispose_from_old_map")
+    state = read("source/saved games/game_state.c").replace("\r\n", "\n")
+    procs = state[state.index("static game_state_after_load_proc after_load_procs[] ="):]
+    assert "\tlightning_tick_seeds_forget\n" in procs[:procs.index("};")]

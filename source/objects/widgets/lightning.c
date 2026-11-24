@@ -205,11 +205,24 @@ void lightnings_initialize_for_new_map(
 	return;
 }
 
+/* port: no bolt's seed kept (lightning_submit): after a game state's load
+(game_state.c's after_load_procs), whose ticks can be ones a seed was kept
+for before it, and as a map is left */
+void lightning_tick_seeds_forget(
+	void)
+{
+	csmemset(lightning_tick_seeds, 0, sizeof(lightning_tick_seeds));
+
+	return;
+}
+
 void lightnings_dispose_from_old_map(
 	void)
 {
 	if (lightning_globals.lightning_data)
 		data_make_invalid(lightning_globals.lightning_data);
+	/* port: (lightning_tick_seeds_forget) */
+	lightning_tick_seeds_forget();
 
 	return;
 }
