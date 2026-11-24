@@ -146,7 +146,7 @@ static const struct config_setting config_settings[] =
 	(ui_widget_game_data_input_functions.c, set_textbox_to_build_number),
 	which Halo Custom Edition's main menu has at its bottom right and the
 	Xbox's menus did not */
-	{ "display.build_number", _config_boolean, "false", "HALO_BUILD_NUMBER", _environment_value, _platform_all,
+	{ "display.build_number", _config_boolean, "false", "HALO_SHOW_BUILD_NUMBER", _environment_value, _platform_all,
 		"Show the game's build number (01.01.14.2342) at the main menu's bottom\n"
 		"right, as Halo Custom Edition shows its own; false shows none, as the\n"
 		"Xbox's menus did." },
