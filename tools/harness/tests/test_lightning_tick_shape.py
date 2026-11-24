@@ -79,4 +79,4 @@ def test_forgotten_after_a_load():
     assert "lightning_tick_seeds_forget();" in function(lightning, "lightnings_dispose_from_old_map")
     state = read("source/saved games/game_state.c").replace("\r\n", "\n")
     procs = state[state.index("static game_state_after_load_proc after_load_procs[] ="):]
-    assert "\tlightning_tick_seeds_forget\n" in procs[:procs.index("};")]
+    assert "\tlightning_tick_seeds_forget,\n" in procs[:procs.index("};")]

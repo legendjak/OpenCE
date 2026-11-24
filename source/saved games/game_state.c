@@ -240,11 +240,12 @@ static game_state_after_load_proc after_load_procs[] =
 	coop_vehicles_after_load,
 	/* port: (vehicle_riding.c: also for a revert in the same structure) */
 	bipeds_riding_latch,
-	/* port: a cinematic's skip goes back to the checkpoint gone back to */
-	cinematic_port_checkpoint,
 	/* port: a lightning's bolt drawn anew, not from a seed kept for the
 	same tick before the load (lightning.c) */
-	lightning_tick_seeds_forget
+	lightning_tick_seeds_forget,
+	/* port: a cinematic's skip goes back to the checkpoint gone back to
+	(the last: test_cinematic_skip_checkpoint.py) */
+	cinematic_port_checkpoint
 };
 
 /* ---------- public code */
