@@ -473,7 +473,10 @@ Version 44 unifies MCC offers under Map Sharing and lets a receiver satisfy
 omitted base resources with its own validated local files. Message layouts
 are unchanged; the changed sharing agreement requires matching peers.
 
-Then version 45 numbers a race track's flags as `race_flags_make_unique`
+This custom build (build 387 with the pull requests it carries) is network
+version 1045, a number of its own far from the project's, so that it plays
+only with copies of itself. It numbers a race track's flags as
+`race_flags_make_unique`
 (`game/game_engine_race.c`) was meant to: a flag whose number another has
 is given a free number, now marked used, so that no later flag shares it
 (the next flag of a track numbered on, a third of one number). A map with
@@ -482,14 +485,14 @@ build before it, and the race's state, which names the flags by their
 numbers (the flags of each player's lap, the first flag, the rally flag),
 would show them on other flags.
 
-Then version 42 makes the overshield's collision material an engineer's
+It also makes the overshield's collision material an engineer's
 force field (`port/linux/game/overshield_material.c`), as the active
 camouflage's is; its type was left dirt. A projectile responds to what it
 hits by the material's type (needles stuck in an overshield, and bounce off
 it now), and the host's copy of a client's projectile and the client's own
 would respond otherwise in builds before it.
 
-Then version 45 leaves a second weapon in a multiplayer game to the action
+And it leaves a second weapon in a multiplayer game to the action
 button, as the Xbox game did (`unit_should_autopick_weapon`,
 `game/players.c`): walking over one with a weapon in hand shows "Hold X to
 pick up", where it was picked up at once (campaign still picks it up). The

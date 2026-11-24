@@ -76,13 +76,15 @@ on a vehicle rides it (a unit's state carries the deck it stands on, the map's
 riding choice has its own message: port/linux/NETCODE.md).
 Version 44: MCC package offers are automatic under Map Sharing, and a joiner
 may satisfy omitted base resources with its own validated local files.
-Version 45: a race track's flag whose number another flag has keeps the
-free number it is given (race_flags_make_unique, game/game_engine_race.c);
-the overshield's collision material is an engineer's force field, as the
-active camouflage's is (game/overshield_material.c); a second weapon in a
-multiplayer game is left to the action button (unit_should_autopick_weapon,
-game/players.c). */
-#define HALO_PORT_NETWORK_VERSION 45
+Version 1045 is this custom build's own (build 387, version 44, with the
+pull requests it carries), far from the project's numbers so that it plays
+only with copies of itself: a race track's flag whose number another flag
+has keeps the free number it is given (race_flags_make_unique,
+game/game_engine_race.c); the overshield's collision material is an
+engineer's force field, as the active camouflage's is
+(game/overshield_material.c); a second weapon in a multiplayer game is left
+to the action button (unit_should_autopick_weapon, game/players.c). */
+#define HALO_PORT_NETWORK_VERSION 1045
 /* ... the advertisement's reserved bytes: the version (a little-endian word),
 then flags, then the game's kind (an OpenCE gametype's mode, and Hardcore:
 port/linux/game/game_modes.h's game_modes_kind), for the server browser */
