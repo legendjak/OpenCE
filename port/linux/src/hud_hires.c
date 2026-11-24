@@ -420,58 +420,37 @@ static unsigned char *upscale_pixels(const unsigned char *bgra, unsigned long wi
 	return out;
 }
 
-/* one pass of a Gaussian blur of the coverage (alpha, in from, out to),
-along rows (horizontal) or columns, its edges taken as continuing */
-static void upscale_blur_pass(const float *from, float *to, unsigned long width, unsigned long height,
-	const float *kernel, long radius, int horizontal)
-{
-	unsigned long x, y;
-
-	for (y = 0; y < height; y++)
-	{
-		for (x = 0; x < width; x++)
-		{
-			float sum = 0.0f;
-			long tap;
-
-			for (tap = -radius; tap <= radius; tap++)
-			{
-				long sx = horizontal ? (long)x + tap : (long)x;
-				long sy = horizontal ? (long)y : (long)y + tap;
-
-				if (sx < 0) sx = 0;
-				if (sx >= (long)width) sx = (long)width - 1;
-				if (sy < 0) sy = 0;
-				if (sy >= (long)height) sy = (long)height - 1;
-				sum += from[sy * width + sx] * kernel[tap + radius];
-			}
-			to[y * width + x] = sum;
-		}
-	}
-}
+/* the rows of the upscaled texture sharpened at a time (upscale_sharpen_alpha) */
+#define UPSCALE_SHARPEN_BAND 256
 
 /* the upscaled RGBA texels' coverage (alpha) sharpened: each texel's
 difference from its neighbourhood's (a Gaussian blur) added again,
 UPSCALE_SHARPEN_AMOUNT of it, so that an edge is steeper and a flat part
-is as it was. Left as it is if memory runs out */
+is as it was. Left as it is if memory runs out.
+
+The blur runs UPSCALE_SHARPEN_BAND rows at a time: the rows' blur across,
+and those of the blur's reach above and below them, then down the band's
+columns, from a copy of the coverage as it was (a byte a texel). The
+largest sheet, 256x256 upscaled to 2048x2048, takes some 6 MB besides its
+texels, where three whole planes of floats took 48 MB; each value is
+summed as before, in the same order, so the texels are the same. */
 static void upscale_sharpen_alpha(unsigned char *pixels, unsigned long width, unsigned long height)
 {
 	float kernel[64];
 	long radius = (long)(3.0f * UPSCALE_SHARPEN_SIGMA + 0.5f), tap;
 	float total = 0.0f;
-	float *alpha, *across, *blurred;
-	unsigned long index, count = width * height;
+	unsigned char *alpha;
+	float *across;
+	unsigned long index, count = width * height, band;
 
-	if (radius * 2 + 1 > (long)(sizeof(kernel) / sizeof(kernel[0])))
+	if (radius * 2 + 1 > (long)(sizeof(kernel) / sizeof(kernel[0])) || !width || !height)
 		return;
-	alpha = malloc(count * sizeof(float));
-	across = malloc(count * sizeof(float));
-	blurred = malloc(count * sizeof(float));
-	if (!alpha || !across || !blurred)
+	alpha = malloc(count);
+	across = malloc(width * (UPSCALE_SHARPEN_BAND + 2 * (unsigned long)radius) * sizeof(float));
+	if (!alpha || !across)
 	{
 		free(alpha);
 		free(across);
-		free(blurred);
 		return;
 	}
 	/* (each tap's weight exp(-tap^2 / (2 sigma^2)), as a power of
@@ -490,17 +469,59 @@ static void upscale_sharpen_alpha(unsigned char *pixels, unsigned long width, un
 		kernel[tap] /= total;
 	for (index = 0; index < count; index++)
 		alpha[index] = pixels[index * 4 + 3];
-	upscale_blur_pass(alpha, across, width, height, kernel, radius, 1);
-	upscale_blur_pass(across, blurred, width, height, kernel, radius, 0);
-	for (index = 0; index < count; index++)
+	for (band = 0; band < height; band += UPSCALE_SHARPEN_BAND)
 	{
-		float value = alpha[index] + UPSCALE_SHARPEN_AMOUNT * (alpha[index] - blurred[index]);
+		unsigned long end = band + UPSCALE_SHARPEN_BAND < height ? band + UPSCALE_SHARPEN_BAND : height;
+		/* (the rows the band's columns are blurred from: its own and the blur's
+		reach, as far as the texture has them) */
+		long first = (long)band - radius;
+		long last = (long)end - 1 + radius;
+		unsigned long x, y;
 
-		pixels[index * 4 + 3] = (unsigned char)(value < 0.0f ? 0 : value > 255.0f ? 255 : value + 0.5f);
+		if (first < 0) first = 0;
+		if (last > (long)height - 1) last = (long)height - 1;
+		/* across the rows, the edges taken as continuing */
+		for (y = (unsigned long)first; y <= (unsigned long)last; y++)
+		{
+			for (x = 0; x < width; x++)
+			{
+				float sum = 0.0f;
+
+				for (tap = -radius; tap <= radius; tap++)
+				{
+					long sx = (long)x + tap;
+
+					if (sx < 0) sx = 0;
+					if (sx >= (long)width) sx = (long)width - 1;
+					sum += (float)alpha[y * width + sx] * kernel[tap + radius];
+				}
+				across[(y - (unsigned long)first) * width + x] = sum;
+			}
+		}
+		/* down the band's columns, and each texel's difference from the blur added */
+		for (y = band; y < end; y++)
+		{
+			for (x = 0; x < width; x++)
+			{
+				float sum = 0.0f;
+				float coverage = (float)alpha[y * width + x];
+				float value;
+
+				for (tap = -radius; tap <= radius; tap++)
+				{
+					long sy = (long)y + tap;
+
+					if (sy < 0) sy = 0;
+					if (sy >= (long)height) sy = (long)height - 1;
+					sum += across[(unsigned long)(sy - first) * width + x] * kernel[tap + radius];
+				}
+				value = coverage + UPSCALE_SHARPEN_AMOUNT * (coverage - sum);
+				pixels[(y * width + x) * 4 + 3] = (unsigned char)(value < 0.0f ? 0 : value > 255.0f ? 255 : value + 0.5f);
+			}
+		}
 	}
 	free(alpha);
 	free(across);
-	free(blurred);
 }
 
 unsigned char *hud_hires_upscale_pixels(const unsigned char *bgra, unsigned long width, unsigned long height)

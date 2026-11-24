@@ -1,4 +1,4 @@
-"""The real upscale_pixels, upscale_blur_pass and upscale_sharpen_alpha (hud_hires.c): the message icons' sheets (the
+"""The real upscale_pixels and upscale_sharpen_alpha (hud_hires.c): the message icons' sheets (the
 weapons the pickup prompt shows, the buttons and sticks), which have no redraw, were drawn from the map's texels by
 interpolation alone, 4 times their size, so their outlines a texel or two wide were soft. They are drawn 8 times their
 size and their coverage sharpened by an unsharp mask: an edge steeper, a flat part as it was. hud_hires_upscale_texture
@@ -13,18 +13,20 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from harness import CHECK_FAILED, build, function, mutated, read, run  # noqa: E402
 
-CASES = ["size", "steeper", "flat kept"]
+CASES = ["size", "steeper", "flat kept", "banded"]
 
-FUNCTIONS = ["upscale_weights", "upscale_pixels", "upscale_blur_pass", "upscale_sharpen_alpha"]
+FUNCTIONS = ["upscale_weights", "upscale_pixels", "upscale_sharpen_alpha"]
 
 # a fault in the code and the case that must catch it
 NEGATIVE_CONTROLS = {
     # not sharpened
-    "unsharpened": (("float value = alpha[index] + UPSCALE_SHARPEN_AMOUNT * (alpha[index] - blurred[index]);",
-                     "float value = alpha[index];"), "steeper"),
+    "unsharpened": (("value = coverage + UPSCALE_SHARPEN_AMOUNT * (coverage - sum);", "value = coverage + 0.0f * sum;"),
+                    "steeper"),
     # sharpened about one half, as a contrast curve: the flat fill fades
-    "contrast": (("float value = alpha[index] + UPSCALE_SHARPEN_AMOUNT * (alpha[index] - blurred[index]);",
-                  "float value = (alpha[index] - 127.5f) * 2.5f + 127.5f;"), "flat kept"),
+    "contrast": (("value = coverage + UPSCALE_SHARPEN_AMOUNT * (coverage - sum);",
+                  "value = (coverage - 127.5f) * 2.5f + 127.5f + 0.0f * sum;"), "flat kept"),
+    # a band's columns blurred from its own rows alone, not the blur's reach above it
+    "no-overlap": (("long first = (long)band - radius;", "long first = (long)band;"), "banded"),
     # the blur's weights not made to sum to one
     "unnormalised": (("kernel[tap] /= total;", "kernel[tap] /= 0.5f * total;"), "flat kept"),
     # the old step, 4 times the size, whatever the factor

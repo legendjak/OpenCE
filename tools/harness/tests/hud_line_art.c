@@ -1,7 +1,7 @@
 /*
 HUD_LINE_ART.C (test)
 
-The real upscale_pixels, upscale_blur_pass and upscale_sharpen_alpha
+The real upscale_pixels and upscale_sharpen_alpha
 (hud_hires.c): the message icons' sheets (the weapons the pickup prompt
 shows, the buttons and sticks) have no redraw, and were drawn from the map's
 texels by interpolation alone, 4 times their size: their outlines a texel
@@ -54,9 +54,103 @@ static long soft_width(unsigned char const *pixels, long factor)
 	return soft;
 }
 
+/* the unsharp mask as it was first written, over whole planes of floats: the
+banded upscale_sharpen_alpha must give the same texels */
+static void reference_sharpen_alpha(unsigned char *pixels, long width, long height)
+{
+	float kernel[64];
+	long radius = (long)(3.0f * UPSCALE_SHARPEN_SIGMA + 0.5f), tap, x, y, index;
+	float total = 0.0f;
+	float *alpha = malloc(width * height * sizeof(float));
+	float *across = malloc(width * height * sizeof(float));
+	float *blurred = malloc(width * height * sizeof(float));
+
+	for (tap = 0; tap <= radius; tap++)
+	{
+		float weight = 1.0f;
+		long power;
+
+		for (power = 0; power < tap * tap; power++)
+			weight *= UPSCALE_SHARPEN_STEP;
+		kernel[radius + tap] = kernel[radius - tap] = weight;
+		total += tap ? 2.0f * weight : weight;
+	}
+	for (tap = 0; tap <= radius * 2; tap++)
+		kernel[tap] /= total;
+	for (index = 0; index < width * height; index++)
+		alpha[index] = pixels[index * 4 + 3];
+	for (y = 0; y < height; y++)
+		for (x = 0; x < width; x++)
+		{
+			float sum = 0.0f;
+
+			for (tap = -radius; tap <= radius; tap++)
+			{
+				long sx = x + tap < 0 ? 0 : x + tap >= width ? width - 1 : x + tap;
+
+				sum += alpha[y * width + sx] * kernel[tap + radius];
+			}
+			across[y * width + x] = sum;
+		}
+	for (y = 0; y < height; y++)
+		for (x = 0; x < width; x++)
+		{
+			float sum = 0.0f;
+
+			for (tap = -radius; tap <= radius; tap++)
+			{
+				long sy = y + tap < 0 ? 0 : y + tap >= height ? height - 1 : y + tap;
+
+				sum += across[sy * width + x] * kernel[tap + radius];
+			}
+			blurred[y * width + x] = sum;
+		}
+	for (index = 0; index < width * height; index++)
+	{
+		float value = alpha[index] + UPSCALE_SHARPEN_AMOUNT * (alpha[index] - blurred[index]);
+
+		pixels[index * 4 + 3] = (unsigned char)(value < 0.0f ? 0 : value > 255.0f ? 255 : value + 0.5f);
+	}
+	free(alpha);
+	free(across);
+	free(blurred);
+}
+
 int main(int argc, char **argv)
 {
 	char const *case_name = argc > 1 ? argv[1] : "";
+
+	/* a sheet upscaled past a band of rows (48x48 to 384x384), its coverage
+	made of lines and fills every way: sharpened a band at a time, the same
+	texels as over the whole texture at once */
+	CASE("banded")
+	{
+		enum { LARGE = 48, LARGE_WIDTH = LARGE * UPSCALE_LINE_ART_FACTOR };
+		static unsigned char large[LARGE * LARGE * 4];
+		unsigned char *banded, *whole;
+		long x, y, differences = 0;
+
+		CHECK(LARGE_WIDTH > UPSCALE_SHARPEN_BAND, "the sheet within one band");
+		for (y = 0; y < LARGE; y++)
+			for (x = 0; x < LARGE; x++)
+			{
+				unsigned char *texel = large + (y * LARGE + x) * 4;
+
+				texel[0] = texel[1] = texel[2] = 255;
+				texel[3] = (unsigned char)((x * 7 + y * 13) % 5 == 0 ? 255 : (x + y) % 9 < 3 ? 90 : (x ^ y) & 1 ? 40 : 0);
+			}
+		banded = upscale_pixels(large, LARGE, LARGE, 256, UPSCALE_LINE_ART_FACTOR);
+		whole = upscale_pixels(large, LARGE, LARGE, 256, UPSCALE_LINE_ART_FACTOR);
+		CHECK(banded && whole, "not upscaled");
+		upscale_sharpen_alpha(banded, LARGE_WIDTH, LARGE_WIDTH);
+		reference_sharpen_alpha(whole, LARGE_WIDTH, LARGE_WIDTH);
+		for (x = 0; x < LARGE_WIDTH * LARGE_WIDTH * 4; x++)
+			differences += banded[x] != whole[x];
+		CHECK(!differences, "%ld bytes not as over the whole texture", differences);
+		free(banded);
+		free(whole);
+		return 0;
+	}
 
 	sheet_reset();
 
