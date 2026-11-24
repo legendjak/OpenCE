@@ -773,7 +773,12 @@ char *nv2a_fixed_function_glsl(void)
 		"\txT3 = v12_in;\n"
 		"\txFog = 1.0;\n"
 		"}\n",
-		/* (display.reversed_depth) */
-		xgpu_reversed_depth ? "\tgl_Position.z = gl_Position.w - gl_Position.z;\n" : "");
+		/* (display.reversed_depth; its z bias in the Xbox's depth units, as a
+		translated program adds it, since the polygon offset then keeps only
+		the slope: d3d8_gl.c) */
+		xgpu_reversed_depth ?
+			"\tgl_Position.z = gl_Position.w - gl_Position.z;\n"
+			"\tgl_Position.z += depth_bias * gl_Position.w;\n" :
+			"");
 	return text.buffer;
 }
