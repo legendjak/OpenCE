@@ -27,7 +27,8 @@ typedef int boolean;typedef float real;typedef unsigned long pixel32;
 typedef struct {short x0,y0,x1,y1;}rectangle2d;
 typedef struct {real x0,y0,x1,y1;}real_rectangle2d;
 typedef struct {real alpha,red,green,blue;}real_argb_color;
-struct bitmap_data {int dummy;short width,height;};
+struct bitmap_data {int dummy;short width,height;long pixels_offset,cache_block_index;void *base_address;};
+typedef unsigned char Bytef;
 struct dynamic_screen_vertex {struct {real x,y;}position,texture_coordinates;pixel32 color;};
 struct rasterizer_dynamic_screen_geometry_parameters {
  struct bitmap_data *map[3];struct {real i,j;}map_texture_scale[3],map_scale[3];int framebuffer_blend_function;
@@ -44,21 +45,31 @@ static real bx,by,bw,bh,tx,ty,ts;
 static wchar_t last_text[32];
 static struct dynamic_screen_vertex drawn[4];
 /* the virtual keyboard's legend: its background, the button keys' bitmaps and where they are drawn */
-static int high_res_text=1,legend_draws;
+static int high_res_text=1,legend_draws,button_lookups;
+static unsigned long changes=1;
 static char const *background_name="ui\\bkd_virtual_keyboard";
-static struct bitmap_data button_bitmap={0,32,32},background_bitmap={0,1024,512};
+/* the background's pixels, and the crc32 they give: the stock one's, or a map's own background's */
+static unsigned char background_pixels[2][1024*512];
+static unsigned long background_crc[2]={0xf2d9bd09UL,0x12345678UL};
+static struct bitmap_data button_bitmap={0,32,32},background_bitmap={0,1024,512,0,7,background_pixels[0]};
 static rectangle2d legend_rects[4];
 int config_boolean(char const *n){
  if(!strcmp(n,"display.high_res_text"))return high_res_text;
  assert(!strcmp(n,"display.menu_button_glyphs"));return enabled;}
 char const *config_string(char const *n){assert(!strcmp(n,"display.menus"));return menus;}
+unsigned long config_changes(void){return changes;}
+static unsigned long crc32(unsigned long crc,Bytef const *b,unsigned n){
+ assert(!crc&&n==1024*512&&(b==background_pixels[0]||b==background_pixels[1]));
+ return background_crc[b==background_pixels[1]];}
+static long bitmap_mipmap_get_pixel_data_size(struct bitmap_data *b,short level){
+ assert(b==&background_bitmap&&!level);return (long)b->width*b->height;}
 static int keyboard_prompt_enabled(short p){observed_port=p;return keyboard;}
 static int controller_button_style_for_port(short p){observed_port=p;return style_choice;}
 static long tag_loaded(long tag,char const *name){
- if(!strcmp(name,"ui\\shell\\bitmaps\\b_butn")){assert(tag=='bitm');return 31;}
- if(!strcmp(name,"ui\\shell\\bitmaps\\a_butn")){assert(tag=='bitm');return 32;}
+ if(!strcmp(name,"ui\\shell\\bitmaps\\b_butn")){assert(tag=='bitm');button_lookups++;return 31;}
+ if(!strcmp(name,"ui\\shell\\bitmaps\\a_butn")){assert(tag=='bitm');button_lookups++;return 32;}
  assert(!strcmp(name,"ui\\small_ui"));return fail==1?NONE:9;}
-static char *tag_get_name(long tag){assert(tag==40);return (char *)background_name;}
+static char *tag_get_name(long tag){assert(tag==40||tag==41);return tag==41?"ui\\bkd_other":(char *)background_name;}
 static struct bitmap_data *bitmap_group_get_bitmap_from_sequence(long tag,short sequence,short frame){
  assert((tag==31||tag==32)&&!sequence&&!frame);return &button_bitmap;}
 static void draw_bitmap_in_rect(struct bitmap_data *b,rectangle2d *r,rectangle2d *br,rectangle2d *clip,pixel32 argb,
@@ -146,19 +157,31 @@ int main(void){
  assert(!menu_button_glyph_join_draw(L"No icon",0,&box));
  assert(!menu_button_glyph_join_draw(L"Press %a-button %b-button",0,&box));
  menus="xbox";assert(!menu_button_glyph_join_draw(L"Press %a-button to Join",0,&box));restored();
- /* the keyboard's legend: its B and A, a texel to the pixel, on the background's own */
+ /* the keyboard's legend: its B and A, a texel to the pixel, on the stock background */
  menu_button_glyph_keyboard_legend(40,&background_bitmap);
  assert(legend_draws==2);
  assert(legend_rects[0].x0==371&&legend_rects[0].y0==414&&legend_rects[0].x1==403&&legend_rects[0].y1==446);
  assert(legend_rects[1].x0==471&&legend_rects[1].y0==414&&legend_rects[1].x1==503&&legend_rects[1].y1==446);
- /* nothing without the high-res text, on another background, or a background of another size */
- legend_draws=0;high_res_text=0;menu_button_glyph_keyboard_legend(40,&background_bitmap);high_res_text=1;
- background_name="ui\\bkd_other";menu_button_glyph_keyboard_legend(40,&background_bitmap);
- background_name="ui\\bkd_virtual_keyboard";background_bitmap.width=512;menu_button_glyph_keyboard_legend(40,&background_bitmap);
+ /* drawn every frame, the background checked and the buttons' tags found once */
+ menu_button_glyph_keyboard_legend(40,&background_bitmap);
+ assert(legend_draws==4&&button_lookups==2);
+ /* nothing without the high-res text (a setting changed), on another background, or a background of another size */
+ legend_draws=0;high_res_text=0;changes++;menu_button_glyph_keyboard_legend(40,&background_bitmap);high_res_text=1;changes++;
+ menu_button_glyph_keyboard_legend(41,&background_bitmap);
+ background_bitmap.width=512;menu_button_glyph_keyboard_legend(40,&background_bitmap);
  background_bitmap.width=1024;menu_button_glyph_keyboard_legend(NONE,&background_bitmap);
  menu_button_glyph_keyboard_legend(40,NULL);
+ /* nor on a map's own background of the stock one's name and size, its pixels not the stock ones */
+ background_bitmap.base_address=background_pixels[1];menu_button_glyph_keyboard_legend(40,&background_bitmap);
+ /* nor before the background's pixels are in memory */
+ background_bitmap.base_address=background_pixels[0];background_bitmap.cache_block_index=NONE;
+ menu_button_glyph_keyboard_legend(40,&background_bitmap);background_bitmap.cache_block_index=7;
+ /* nor with a button bitmap of another size */
  button_bitmap.width=16;menu_button_glyph_keyboard_legend(40,&background_bitmap);button_bitmap.width=32;
  assert(!legend_draws);
+ /* and the stock background's again */
+ menu_button_glyph_keyboard_legend(40,&background_bitmap);
+ assert(legend_draws==2);
  return 0;
 }
 """)

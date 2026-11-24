@@ -13,11 +13,13 @@
 #include "tag_files/tag_groups.h"
 #include "text/draw_string.h"
 #include "rasterizer/rasterizer.h"
+#include "../../third_party/zlib/zlib_prefixed.h"
 #include <string.h>
 #include <wchar.h>
 
 int config_boolean(char const *name);
 char const *config_string(char const *name);
+unsigned long config_changes(void);
 struct bitmap_data *hud_hires_button_bitmap(short style, short slot);
 
 static boolean menu_button_glyph_enabled(short button, short port)
@@ -242,7 +244,26 @@ boolean menu_button_glyph_keyboard_active(short port)
  * With the high-res text those two bitmaps are drawn from their redraws
  * (tools/button_assets.py), so they are drawn over the background's, on
  * the texels their art covers there, and the legend's buttons are as sharp
- * as the menus' button keys. */
+ * as the menus' button keys.
+ *
+ * Only over the stock background: its first level's pixels those of the
+ * English Xbox ui.map (KEYBOARD_BACKGROUND_STOCK_CRC). A map's own
+ * background of that name and size can place its legend elsewhere or have
+ * none, and is drawn as it is. The check, and the two buttons' tags, are
+ * found once for each background drawn (a keyboard opened, a map loaded),
+ * not each frame: tag_loaded walks the map's tag table. */
+#define KEYBOARD_BACKGROUND_STOCK_CRC 0xf2d9bd09UL
+
+static struct
+{
+    long background_index;
+    struct bitmap_data const *background;
+    void *base_address;
+    unsigned long checked_at;
+    boolean stock;
+    long icons[2];
+} keyboard_legend = {NONE};
+
 void menu_button_glyph_keyboard_legend(long background_index, struct bitmap_data const *background)
 {
     static struct { char const *tag; short x, y; } const icons[] = {
@@ -250,13 +271,30 @@ void menu_button_glyph_keyboard_legend(long background_index, struct bitmap_data
         {"ui\\shell\\bitmaps\\a_butn", 471, 414}};
     short i;
 
-    if (background_index == NONE || !background || background->width != 1024 || background->height != 512 ||
-        !config_boolean("display.high_res_text") ||
-        strcmp(tag_get_name(background_index), "ui\\bkd_virtual_keyboard"))
+    if (background_index == NONE || !background || background->width != 1024 || background->height != 512)
+        return;
+    /* (its pixels only once they are in memory: until then, as it is) */
+    if (background->cache_block_index == NONE || !background->base_address)
+        return;
+    if (keyboard_legend.background_index != background_index || keyboard_legend.background != background ||
+        keyboard_legend.base_address != background->base_address || keyboard_legend.checked_at != config_changes())
+    {
+        keyboard_legend.background_index = background_index;
+        keyboard_legend.background = background;
+        keyboard_legend.base_address = background->base_address;
+        keyboard_legend.checked_at = config_changes();
+        keyboard_legend.stock = config_boolean("display.high_res_text") &&
+            !strcmp(tag_get_name(background_index), "ui\\bkd_virtual_keyboard") &&
+            bitmap_mipmap_get_pixel_data_size((struct bitmap_data *)background, 0) == 1024L * 512L &&
+            crc32(0L, (Bytef const *)background->base_address, 1024U * 512U) == KEYBOARD_BACKGROUND_STOCK_CRC;
+        for (i = 0; i < (short)NUMBEROF(icons); i++)
+            keyboard_legend.icons[i] = keyboard_legend.stock ? tag_loaded('bitm', icons[i].tag) : NONE;
+    }
+    if (!keyboard_legend.stock)
         return;
     for (i = 0; i < (short)NUMBEROF(icons); i++)
     {
-        long index = tag_loaded('bitm', icons[i].tag);
+        long index = keyboard_legend.icons[i];
         struct bitmap_data *bitmap = index != NONE ? bitmap_group_get_bitmap_from_sequence(index, 0, 0) : NULL;
         rectangle2d bounds;
 
