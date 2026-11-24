@@ -73,6 +73,8 @@ struct custom_edition_file
 struct custom_edition_cache_globals
 {
 	boolean tags_loaded;
+	/* a donor's tags loaded beside an Xbox map (custom_edition_cache_donor_load) */
+	boolean donor_loaded;
 	/* the loaded map's file (custom_edition_cache_loaded_path), while it
 	is open */
 	char map_path[MAP_PATH_SIZE];
@@ -358,11 +360,16 @@ static boolean custom_edition_map_path(
 folder that has it; the game's when none does, for the message. */
 static boolean custom_edition_resource_map_path(
 	enum resource_map_type type,
+	boolean install_first,
 	char *path)
 {
 	char const *name = resource_map_type_describe(type);
 	short folder;
 
+	/* (a donor's are its install's, beside it: custom_maps' may be another
+	Custom Edition's) */
+	if (install_first && maps_folder_has(maps_folder(1), name, MAP_FILE_EXTENSION, path))
+		return TRUE;
 	for (folder = 0; folder < NUMBER_OF_MAPS_FOLDERS; folder++)
 	{
 		if (maps_folder_has(maps_folder(folder), name, MAP_FILE_EXTENSION, path))
@@ -978,7 +985,9 @@ unsigned long custom_edition_map_resource_maps_needed(
 char const *custom_edition_cache_loaded_path(
 	void)
 {
-	return custom_edition_cache_globals.map.stream ? custom_edition_cache_globals.map_path : NULL;
+	/* (a donor's is not a map loaded) */
+	return custom_edition_cache_globals.map.stream && !custom_edition_cache_globals.donor_loaded ?
+		custom_edition_cache_globals.map_path : NULL;
 }
 
 boolean custom_edition_map_file_present(
@@ -1114,31 +1123,21 @@ boolean custom_edition_cache_multiplayer(
 		identity.scenario_type == _scenario_type_multiplayer;
 }
 
-struct cache_file_tag_header *custom_edition_cache_tags_load(
-	char const *map_name,
+/* Loads the map at `path`, opened as globals->map, into the tag cache and
+converts its tags, copying its cache header to `header`; the tag cache's
+tags, or NULL after logging why (its files closed) */
+static uint8_t *custom_edition_cache_path_load(
+	char const *path,
+	boolean donor,
 	void *header)
 {
 	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
 	uint8_t *tag_cache = halo_custom_edition_tag_cache();
 	struct custom_edition_load_report report;
 	struct cache_file_identity identity;
-	char path[MAP_PATH_SIZE];
 	enum cache_file_status status;
 	short type;
 
-	assert(!globals->tags_loaded);
-	if (!tag_cache)
-	{
-		error(_error_silent, "custom edition: cannot load the map '%s': %s", map_name,
-			custom_edition_unavailable_reason());
-		return NULL;
-	}
-	if (!custom_edition_map_path(map_name, path) || !custom_edition_file_open(&globals->map, path))
-	{
-		error(_error_silent, "custom edition: cannot open the map '%s' (it is looked for in the custom_maps folder)",
-			map_name);
-		return NULL;
-	}
 	strcpy(globals->map_path, path);
 	status = cache_file_identify(&globals->map.source, &identity);
 	if (status != _cache_file_status_ok ||
@@ -1162,7 +1161,7 @@ struct cache_file_tag_header *custom_edition_cache_tags_load(
 	{
 		char resource_path[MAP_PATH_SIZE];
 
-		if (!custom_edition_resource_map_path((enum resource_map_type)type, resource_path) ||
+		if (!custom_edition_resource_map_path((enum resource_map_type)type, donor, resource_path) ||
 			!custom_edition_file_open(&globals->resource_files[type], resource_path))
 		{
 			error(_error_silent, "custom edition: no resource map '%s'", resource_path);
@@ -1224,9 +1223,141 @@ struct cache_file_tag_header *custom_edition_cache_tags_load(
 	globals->loaded_bytes = report.tag_data_bytes + report.resource_tag_bytes;
 	globals->tag_cache_bytes = report.tag_cache_bytes;
 	globals->file_length = report.identity.file_length;
+
+	return tag_cache;
+}
+
+struct cache_file_tag_header *custom_edition_cache_tags_load(
+	char const *map_name,
+	void *header)
+{
+	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
+	char path[MAP_PATH_SIZE];
+
+	assert(!globals->tags_loaded);
+	/* (an Xbox map's donor goes with it, scenario_tags_unload: one left
+	behind is let go) */
+	if (globals->donor_loaded)
+		custom_edition_cache_donor_unload();
+	if (!halo_custom_edition_tag_cache())
+	{
+		error(_error_silent, "custom edition: cannot load the map '%s': %s", map_name,
+			custom_edition_unavailable_reason());
+		return NULL;
+	}
+	if (!custom_edition_map_path(map_name, path) || !custom_edition_file_open(&globals->map, path))
+	{
+		error(_error_silent, "custom edition: cannot open the map '%s' (it is looked for in the custom_maps folder)",
+			map_name);
+		return NULL;
+	}
+	if (!custom_edition_cache_path_load(path, FALSE, header))
+		return NULL;
 	globals->tags_loaded = TRUE;
 
+	return (struct cache_file_tag_header *)globals->tag_cache;
+}
+
+struct cache_file_tag_header *custom_edition_cache_donor_load(
+	char const *path)
+{
+	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
+	byte header[CACHE_FILE_HEADER_BYTES];
+	void *validation;
+	uint8_t *tag_cache;
+
+	if (globals->tags_loaded || globals->donor_loaded || !halo_custom_edition_tag_cache() ||
+		strlen(path) >= MAP_PATH_SIZE)
+	{
+		return NULL;
+	}
+	if (!custom_edition_file_open(&globals->map, path))
+	{
+		error(_error_silent, "custom edition: cannot open '%s'", path);
+		return NULL;
+	}
+	/* (the Xbox map's bsps are checked against its own tags as they load) */
+	validation = tag_validate_state_save();
+	if (!validation)
+	{
+		error(_error_silent, "custom edition: out of memory to load '%s' beside the map", path);
+		custom_edition_cache_files_close();
+		return NULL;
+	}
+	tag_cache = custom_edition_cache_path_load(path, TRUE, header);
+	tag_validate_state_restore(validation);
+	if (!tag_cache)
+		return NULL;
+	globals->donor_loaded = TRUE;
+
 	return (struct cache_file_tag_header *)tag_cache;
+}
+
+boolean custom_edition_cache_donor_loaded(
+	void)
+{
+	return custom_edition_cache_globals.donor_loaded;
+}
+
+byte *custom_edition_cache_donor_tags(
+	unsigned long *loaded_bytes)
+{
+	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
+
+	*loaded_bytes = globals->donor_loaded ? globals->loaded_bytes : 0;
+	return globals->donor_loaded ? globals->tag_cache : NULL;
+}
+
+void custom_edition_cache_donor_unload(
+	void)
+{
+	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
+
+	if (!globals->donor_loaded)
+		return;
+	custom_edition_sounds_dispose();
+	custom_edition_models_dispose();
+	custom_edition_bitmaps_dispose();
+	custom_edition_cache_files_close();
+	globals->donor_loaded = FALSE;
+	globals->behaviours = 0;
+	globals->tag_cache = NULL;
+	globals->loaded_bytes = 0;
+
+	return;
+}
+
+boolean custom_edition_cache_contains(
+	void const *address)
+{
+	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
+
+	return (globals->tags_loaded || globals->donor_loaded) && globals->tag_cache &&
+		(unsigned long)address >= (unsigned long)globals->tag_cache &&
+		(unsigned long)address - (unsigned long)globals->tag_cache < globals->loaded_bytes;
+}
+
+boolean custom_edition_bitmap_from_pc(
+	struct bitmap_data const *bitmap)
+{
+	return custom_edition_cache_globals.tags_loaded ||
+		(custom_edition_cache_globals.donor_loaded && custom_edition_cache_contains(bitmap));
+}
+
+boolean custom_edition_cache_file_identify(
+	char const *path,
+	struct cache_file_identity *identity)
+{
+	struct custom_edition_file file;
+	boolean identified;
+
+	if (!custom_edition_file_open(&file, path))
+		return FALSE;
+	identified = cache_file_identify(&file.source, identity) == _cache_file_status_ok &&
+		identity->format == _cache_file_format_custom_edition_cache;
+	custom_edition_file_close(&file);
+
+	return identified;
 }
 
 boolean custom_edition_cache_stock_tag(

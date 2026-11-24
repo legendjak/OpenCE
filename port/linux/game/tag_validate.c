@@ -1939,3 +1939,179 @@ void *tag_validate_index_buffer_data(
 		return mcc_validation_callbacks->buffer_data(validation, buffer, TRUE);
 	return buffer_data(validation->index_buffers, validation->index_buffer_count, buffer);
 }
+
+/* ---- what another map's check (tag_validate_custom_edition_tags) would
+overwrite of the last check's: the loaded map's structure bsps are checked
+against its tags as they load (tag_validate_structure_bsp) */
+
+struct tag_validate_saved_state
+{
+	byte globals[sizeof(tag_validate_globals)];
+	unsigned long claims[CLAIM_WORDS];
+};
+
+void *tag_validate_state_save(
+	void)
+{
+	struct tag_validate_saved_state *state = malloc(sizeof(*state));
+
+	if (state)
+	{
+		memcpy(state->globals, &tag_validate_globals, sizeof(tag_validate_globals));
+		memcpy(state->claims, tag_validate_claims, sizeof(tag_validate_claims));
+	}
+
+	return state;
+}
+
+void tag_validate_state_restore(
+	void *saved)
+{
+	struct tag_validate_saved_state *state = saved;
+
+	if (!state)
+		return;
+	memcpy(&tag_validate_globals, state->globals, sizeof(tag_validate_globals));
+	memcpy(tag_validate_claims, state->claims, sizeof(tag_validate_claims));
+	free(state);
+
+	return;
+}
+
+/* ---- the references of a tag laid out as this build's */
+
+struct references_walk
+{
+	byte const *region;
+	unsigned long region_size;
+	tag_validate_index_proc visit;
+	void *context;
+	boolean failed;
+};
+
+/* the group's schema, of this build's layout ('mod2' Custom Edition's) */
+static struct tag_schema_group const *walk_group_get(
+	unsigned long group_tag)
+{
+	struct tag_schema_group const *const *list;
+	struct tag_schema_group const *group;
+
+	for (list = tag_schema_group_lists; *list; list++)
+	{
+		for (group = *list; group->group_tag; group++)
+		{
+			if (group->group_tag == group_tag)
+				return group;
+		}
+	}
+	for (group = tag_schema_custom_edition_groups; group->group_tag; group++)
+	{
+		if (group->group_tag == group_tag)
+			return group;
+	}
+
+	return NULL;
+}
+
+static boolean walk_region_contains(
+	struct references_walk const *walk,
+	void const *address,
+	unsigned long size)
+{
+	unsigned long offset = (unsigned long)address - (unsigned long)walk->region;
+
+	return (unsigned long)address >= (unsigned long)walk->region && offset <= walk->region_size &&
+		size <= walk->region_size - offset;
+}
+
+static void references_walk_fields(
+	struct references_walk *walk,
+	byte *base,
+	struct tag_schema_definition const *definition,
+	short depth)
+{
+	struct tag_schema_field const *field;
+
+	if (depth >= MAXIMUM_VALIDATION_DEPTH)
+	{
+		walk->failed = TRUE;
+		return;
+	}
+	for (field = definition->fields; field->type != _tag_schema_terminator && !walk->failed; field++)
+	{
+		short index;
+
+		for (index = 0; index < field->count && !walk->failed; index++)
+		{
+			byte *address = base + field->offset + index * field->size;
+
+			switch (field->type)
+			{
+			case _tag_schema_struct:
+				references_walk_fields(walk, address, field->definition, depth);
+				break;
+
+			case _tag_schema_reference:
+			{
+				struct tag_reference *reference = (struct tag_reference *)address;
+
+				walk->visit(walk->context, &reference->index, reference->group_tag);
+				break;
+			}
+
+			case _tag_schema_tag_index:
+				walk->visit(walk->context, (long *)address, 0);
+				break;
+
+			case _tag_schema_block:
+			{
+				struct tag_block const *block = (struct tag_block const *)address;
+				struct tag_schema_definition const *element_definition = field->definition;
+				long element_index;
+
+				if (block->count <= 0)
+					break;
+				if (element_definition->size <= 0 ||
+					(unsigned long)block->count > walk->region_size / (unsigned long)element_definition->size ||
+					!walk_region_contains(walk, block->address,
+						(unsigned long)block->count * (unsigned long)element_definition->size))
+				{
+					walk->failed = TRUE;
+					break;
+				}
+				for (element_index = 0; element_index < block->count && !walk->failed; element_index++)
+				{
+					references_walk_fields(walk, (byte *)block->address + element_index * element_definition->size,
+						element_definition, depth + 1);
+				}
+				break;
+			}
+			}
+		}
+	}
+
+	return;
+}
+
+boolean tag_validate_references_walk(
+	unsigned long group_tag,
+	void *root,
+	void const *region,
+	unsigned long region_size,
+	tag_validate_index_proc visit,
+	void *context)
+{
+	struct tag_schema_group const *group = walk_group_get(group_tag);
+	struct references_walk walk;
+
+	walk.region = region;
+	walk.region_size = region_size;
+	walk.visit = visit;
+	walk.context = context;
+	walk.failed = FALSE;
+	if (!group || !group->definition || !walk_region_contains(&walk, root, (unsigned long)group->definition->size))
+		return FALSE;
+	references_walk_fields(&walk, root, group->definition, 0);
+
+	return !walk.failed;
+}

@@ -652,6 +652,13 @@ void scenario_tags_unload(
 
 		menu_tags_unloaded();
 	}
+	/* port: and then the Halo PC items' tags, which the menus' were added
+	after (port/linux/game/gearbox_items.c) */
+	{
+		extern void gearbox_items_tags_unloaded(void);
+
+		gearbox_items_tags_unloaded();
+	}
 	cache_file_close();
 	/* port: an MCC map's tags and buffers are its own (mcc_cache.c) */
 	if (mcc_cache_tags_loaded())
@@ -1121,7 +1128,15 @@ unsigned long cache_files_map_version(
 	/* port: an MCC map's version is its checksum (mcc_cache.c) */
 	if (mcc_level_name(map_name))
 		return mcc_cache_checksum(map_name);
-	return custom_edition_level_name(map_name) ? custom_edition_map_version(map_name) : 0;
+	/* port: and one of the game's own multiplayer maps', whether it has Halo
+	PC's items (port/linux/game/gearbox_items.c) */
+	if (!custom_edition_level_name(map_name))
+	{
+		extern unsigned long gearbox_items_map_version(char const *map_name);
+
+		return gearbox_items_map_version(map_name);
+	}
+	return custom_edition_map_version(map_name);
 }
 
 /* port: whether this machine has the map a network game is on (a client
@@ -1170,6 +1185,24 @@ boolean cache_files_map_present(
 		char path[256];
 		HANDLE file;
 
+		extern unsigned long gearbox_items_map_version(char const *map_name);
+
+		/* port: the host's game has Halo PC's items on its map if its version
+		says so, and this machine must add the same ones, or none
+		(port/linux/game/gearbox_items.c) */
+		if (version != gearbox_items_map_version(map_name))
+		{
+			snprintf(message, sizeof(message), version ?
+				"The host plays %.64s with Halo PC's vehicles and weapons. Set paths.custom_edition to the same Halo PC's folder, with game.gearbox_items on." :
+				"The host plays %.64s without Halo PC's vehicles and weapons. Turn game.gearbox_items off to join.",
+				name);
+			platform_log("map missing: %s", message);
+			for (index = 0; message[index] && index < NUMBEROF(error_text) - 1; index++)
+				error_text[index] = (wchar_t)(unsigned char)message[index];
+			error_text[index] = 0;
+			display_error_text_when_main_menu_loaded(error_text);
+			return FALSE;
+		}
 		if (cache_files_precache_map_loaded(map_name))
 			return TRUE;
 		snprintf(path, sizeof(path), "%s%s.map", cache_files_map_directory(), name);
@@ -1490,6 +1523,15 @@ long scenario_tags_load(
 				extern void crewman_hands_tags_loaded(void);
 
 				crewman_hands_tags_loaded();
+			}
+			/* port: Halo PC's rocket warthog, Banshee, flamethrower and fuel
+			rod gun added to a multiplayer map's tags and placements, from the
+			Halo PC map of its name (port/linux/game/gearbox_items.c) */
+			{
+				extern void gearbox_items_tags_loaded(char const *map_name, long scenario_index);
+
+				gearbox_items_tags_loaded(cache_file_globals.header.name,
+					cache_file_globals.tag_header->scenario_tag_index);
 			}
 			/* port: the menus' tags, added to the map's (port/linux/game/menu_tags.c) */
 			{

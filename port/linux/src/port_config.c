@@ -564,6 +564,15 @@ static const struct config_setting config_settings[] =
 		"as CUSTOM SINGLEPLAYER and CUSTOM MULTIPLAYER. Their tags are checked\n"
 		"as the game's own maps' are before they run; false refuses them\n"
 		"(docs/custom_edition_caches.md)." },
+	{ "game.gearbox_items", _config_boolean, "true", "HALO_GEARBOX_ITEMS", _environment_value, _platform_all,
+		"Add Halo PC's rocket warthog, Banshee, flamethrower and fuel rod gun to\n"
+		"the game's multiplayer maps, where Halo PC placed them, from the Halo\n"
+		"PC maps in paths.custom_edition's maps folder (with game.custom_edition\n"
+		"on). The gametype's vehicle options place the rocket warthogs and\n"
+		"Banshees (PC, or custom counts; the default set places the Xbox's\n"
+		"vehicles alone), and its weapon set and loadout the weapons. Every\n"
+		"player of a network game needs the same; false: the Xbox's maps as\n"
+		"they are." },
 	{ "bots.count", _config_integer, "0", "HALO_BOTS", _environment_value, _platform_all,
 		"Computer players (bots) in a local (split screen) Slayer game: 0 to 15\n"
 		"join its lobby with the players, as far as the game has room. Not in\n"

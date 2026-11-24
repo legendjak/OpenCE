@@ -7,7 +7,7 @@ with `git cherry-pick -x`, not its branch: most were opened against
 requests whose branches merged another one were applied as one commit of
 their net change (#635, #729, #733, #735, #737).
 
-The build is network version **1045**, a number of its own: it plays only
+The build is network version **1046**, a number of its own: it plays only
 with copies of itself (`port/linux/NETCODE.md`). Saved games of build 387
 still load: nothing here adds to the game state's allocations.
 
@@ -86,6 +86,21 @@ full LTO, PGO), which collects `dist/halo-windows-release`.
 Also fixed here, in pull requests build 387 already has: #540 (the z bias
 in the fixed-function program too) and #552 (the lightning seeds forgotten
 after a load), as their reviews asked.
+
+## Added for this build
+
+- Retail Halo PC's maps (cache version 7) run as Custom Edition maps do,
+  from `paths.custom_edition` (for example `D:\Games`).
+- Halo PC's rocket warthog, Banshee, flamethrower and fuel rod gun on the
+  game's own multiplayer maps (`game.gearbox_items`, on): taken with their
+  placements from the Halo PC map of the same name in that install, at load
+  (`port/linux/game/gearbox_items.c`). The gametype's vehicle options place
+  the rocket warthogs and Banshees (PC, or counts; the default set places the
+  Xbox's vehicles alone); the weapons follow the weapon set (Classic leaves
+  them out) and can be a custom loadout's. This adds tags to a map at load,
+  which the project's rules do not allow upstream: it is this build's alone.
+  A network game records whether its map has them (network version 1046), and
+  a machine that differs from the host is told why it cannot join.
 
 ## Not in the build
 

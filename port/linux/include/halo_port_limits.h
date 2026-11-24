@@ -83,8 +83,11 @@ has keeps the free number it is given (race_flags_make_unique,
 game/game_engine_race.c); the overshield's collision material is an
 engineer's force field, as the active camouflage's is
 (game/overshield_material.c); a second weapon in a multiplayer game is left
-to the action button (unit_should_autopick_weapon, game/players.c). */
-#define HALO_PORT_NETWORK_VERSION 1045
+to the action button (unit_should_autopick_weapon, game/players.c).
+1046: a game on one of the game's own multiplayer maps records whether it has
+Halo PC's rocket warthog, Banshee, flamethrower and fuel rod gun, and from
+which Halo PC map (game/gearbox_items.c), as its map's version. */
+#define HALO_PORT_NETWORK_VERSION 1046
 /* ... the advertisement's reserved bytes: the version (a little-endian word),
 then flags, then the game's kind (an OpenCE gametype's mode, and Hardcore:
 port/linux/game/game_modes.h's game_modes_kind), for the server browser */

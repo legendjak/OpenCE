@@ -203,6 +203,10 @@ enum
 	_loadout_weapon_plasma_pistol,
 	_loadout_weapon_plasma_rifle,
 	_loadout_weapon_needler,
+	/* Halo PC's, on a map given its items (port/linux/game/gearbox_items.c);
+	none on the others */
+	_loadout_weapon_flamethrower,
+	_loadout_weapon_fuel_rod,
 	NUMBER_OF_LOADOUT_WEAPONS
 };
 

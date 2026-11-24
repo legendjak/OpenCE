@@ -341,6 +341,34 @@ boolean tag_validate_structure_bsp(
 	void *base,
 	long size);
 
+/* The state the last validation left (its tags, and the bytes they hold),
+which a validation of other tags replaces: saved before one and restored
+after it, so that the loaded map's structure bsps are still checked against
+its own tags (tag_validate_structure_bsp). Save returns NULL if it cannot;
+restore frees what save returned. */
+void *tag_validate_state_save(
+	void);
+void tag_validate_state_restore(
+	void *saved);
+
+/* Calls visit on each tag reference's index (with the reference's group)
+and each tag index (with 0) of the tag of group group_tag whose root is at
+root, laid out as this build's (a Custom Edition map's tags are once
+converted), whose blocks all lie in the region_size bytes at region: visit
+may change the index. FALSE if the group is not known or a block leaves the
+region (the walk stops there). */
+typedef void (*tag_validate_index_proc)(
+	void *context,
+	long *tag_index,
+	unsigned long group_tag);
+boolean tag_validate_references_walk(
+	unsigned long group_tag,
+	void *root,
+	void const *region,
+	unsigned long region_size,
+	tag_validate_index_proc visit,
+	void *context);
+
 /* how many corrections the last validation made (none for a retail map) */
 long tag_validate_corrections(
 	void);

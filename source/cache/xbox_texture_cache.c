@@ -797,8 +797,9 @@ static boolean texture_cache_bitmap_valid(
 			compressed_flag==compressed_format;
 	}
 	/* port: a Custom Edition map's linear rows need not be whole steps of the
-	pitch, nor a mod's: they are padded to them as its pixels load
-	(port/linux/game/custom_edition_bitmaps.c, mod_bitmaps.c) */
+	pitch, nor a mod's, nor those of the Halo PC items an Xbox map was given:
+	they are padded to them as its pixels load
+	(port/linux/game/custom_edition_bitmaps.c, mod_bitmaps.c, gearbox_items.c) */
 	if (valid && linear)
 	{
 		extern boolean mod_bitmaps_contain(struct bitmap_data const *bitmap);
@@ -807,7 +808,7 @@ static boolean texture_cache_bitmap_valid(
 
 		valid =
 			row_pitch>0 &&
-			(row_pitch%D3DTEXTURE_PITCH_ALIGNMENT==0 || custom_edition_cache_tags_loaded() ||
+			(row_pitch%D3DTEXTURE_PITCH_ALIGNMENT==0 || custom_edition_bitmap_from_pc(bitmap) ||
 				mod_bitmaps_contain(bitmap)) &&
 			steps<=(long)((D3DSIZE_PITCH_MASK>>D3DSIZE_PITCH_SHIFT)+1);
 	}

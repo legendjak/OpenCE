@@ -157,6 +157,39 @@ struct cache_file_tag_header *custom_edition_cache_tags_load(
 	char const *map_name,
 	void *header);
 
+/* A donor: the Halo PC or Custom Edition map at `path` loaded into the
+Custom Edition tag cache and converted as custom_edition_cache_tags_load
+does, beside an Xbox map, which stays the loaded map
+(custom_edition_cache_tags_loaded stays FALSE): its tags are taken into the
+Xbox map's by gearbox_items.c. Returns its tag index header, or NULL after
+logging why; the validator's state is the Xbox map's again after it either
+way. Its pixels and samples are read with custom_edition_cache_read, by its
+own tag handles. */
+struct cache_file_tag_header *custom_edition_cache_donor_load(
+	char const *path);
+boolean custom_edition_cache_donor_loaded(
+	void);
+/* the donor's tag cache, and the bytes of it its tags use; NULL if none */
+byte *custom_edition_cache_donor_tags(
+	unsigned long *loaded_bytes);
+void custom_edition_cache_donor_unload(
+	void);
+/* Whether `address` is in the tags of the Custom Edition map or donor
+loaded: data laid out for Halo PC, converted. */
+boolean custom_edition_cache_contains(
+	void const *address);
+/* whether a bitmap is a Custom Edition map's or a donor's, which Halo PC
+draws in its own ways (hud_draw.c) */
+boolean custom_edition_bitmap_from_pc(
+	struct bitmap_data const *bitmap);
+/* The header of the cache file at `path`: TRUE when it is a Halo PC or
+Custom Edition cache, described in `identity` (struct cache_file_identity,
+cache_file_formats.h). */
+struct cache_file_identity;
+boolean custom_edition_cache_file_identify(
+	char const *path,
+	struct cache_file_identity *identity);
+
 /* whether a Halo Custom Edition install's maps folder is to be looked in
 (paths.custom_edition) */
 boolean custom_edition_install_present(

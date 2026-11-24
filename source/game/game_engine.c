@@ -538,6 +538,7 @@ symbols in this file:
 
 #include "cseries.h"
 #include "game_modes.h" /* port: port/linux/game/game_modes.c */
+#include "gearbox_items.h" /* port: port/linux/game/gearbox_items.c */
 #include "keyboard_glyphs.h" /* port: port/linux/game/keyboard_glyphs.c */
 #include "infection.h" /* port: port/linux/game/infection.c */
 #include "cseries_windows.h"
@@ -729,6 +730,9 @@ enum
 	_weapon_list_flag,
 	_weapon_list_frag_grenade,
 	_weapon_list_plasma_grenade,
+	/* port: Halo PC's fuel rod gun, on a map given Halo PC's items, which no
+	globals' list has (port/linux/game/gearbox_items.c) */
+	_weapon_list_fuel_rod,
 };
 
 /* ---------- macros */
@@ -7564,6 +7568,14 @@ static void game_engine_predict_resources(
 		object_definition_predict(
 			game_engine_remap_weapon(weapon_indices[weapon_index]));
 	}
+	/* port: and Halo PC's items, on a map given them (gearbox_items.c) */
+	if (gearbox_items_loaded())
+	{
+		long fuel_rod = game_engine_remap_weapon(gearbox_items_weapon(_gearbox_item_fuel_rod));
+
+		if (fuel_rod != NONE)
+			object_definition_predict(fuel_rod);
+	}
 
 	return;
 }
@@ -8015,11 +8027,41 @@ long game_engine_remap_vehicle(
 	return result;
 }
 
+/* port: a weapon's place in the globals' list, Halo PC's flamethrower and
+fuel rod gun's on a map given them (port/linux/game/gearbox_items.c) */
+static long game_engine_weapon_list_index(
+	long weapon_definition_index)
+{
+	if (weapon_definition_index != NONE)
+	{
+		if (weapon_definition_index == gearbox_items_weapon(_gearbox_item_fuel_rod))
+			return _weapon_list_fuel_rod;
+		if (weapon_definition_index == gearbox_items_weapon(_gearbox_item_flamethrower))
+			return _weapon_list_flamethrower;
+	}
+	return weapon_definition_index_to_list_index(weapon_definition_index);
+}
+
+/* port: ... and the weapon of a place */
+static long game_engine_weapon_list_definition(
+	long weapon_list_index)
+{
+	if (weapon_list_index == _weapon_list_fuel_rod)
+		return gearbox_items_weapon(_gearbox_item_fuel_rod);
+	if (weapon_list_index == _weapon_list_flamethrower && gearbox_items_loaded())
+		return gearbox_items_weapon(_gearbox_item_flamethrower);
+	return list_index_to_weapon_definition_index(weapon_list_index);
+}
+
 long game_engine_remap_weapon(
 	long weapon_definition_index)
 {
+	/* port: (Halo PC's items' weapons too: game_engine_weapon_list_index) */
 	long weapon_list_index =
-		weapon_definition_index_to_list_index(weapon_definition_index);
+		game_engine_weapon_list_index(weapon_definition_index);
+	/* port: whether Halo PC's items are on the map, a flamethrower and fuel
+	rod gun of its multiplayer weapons */
+	boolean gearbox = gearbox_items_loaded();
 
 	if (weapon_list_index == _weapon_list_ball ||
 		weapon_list_index == _weapon_list_flag ||
@@ -8029,13 +8071,14 @@ long game_engine_remap_weapon(
 	}
 
 	/* (port: and the gravity rifle, a cut weapon, as the flamethrower,
-	which the Xbox's maps have unfinished: neither is a multiplayer weapon) */
-	if (weapon_list_index == _weapon_list_flamethrower || weapon_list_index == _weapon_list_gravity_rifle)
+	which the Xbox's maps have unfinished: neither is a multiplayer weapon;
+	Halo PC's flamethrower is, where its items are) */
+	if ((weapon_list_index == _weapon_list_flamethrower && !gearbox) || weapon_list_index == _weapon_list_gravity_rifle)
 		weapon_list_index = _weapon_list_rocket_launcher;
 
 	/* port: a custom loadout (game_variant_options) has no weapon set */
 	if (game_variant_options_get()->loadout == _loadout_custom)
-		return list_index_to_weapon_definition_index(weapon_list_index);
+		return game_engine_weapon_list_definition(weapon_list_index);
 
 	switch (global_variant.universal_variant.weapon_set)
 	{
@@ -8046,6 +8089,7 @@ long game_engine_remap_weapon(
 		case _weapon_list_pistol:
 		case _weapon_list_plasma_rifle:
 		case _weapon_list_rocket_launcher:
+		case _weapon_list_fuel_rod:
 			weapon_list_index = _weapon_list_plasma_pistol;
 			break;
 
@@ -8063,6 +8107,7 @@ long game_engine_remap_weapon(
 		case _weapon_list_pistol:
 		case _weapon_list_plasma_rifle:
 		case _weapon_list_rocket_launcher:
+		case _weapon_list_fuel_rod:
 			weapon_list_index = _weapon_list_plasma_rifle;
 			break;
 
@@ -8129,11 +8174,17 @@ long game_engine_remap_weapon(
 		case _weapon_list_plasma_pistol:
 			weapon_list_index = _weapon_list_pistol;
 			break;
+
+		/* (port: Halo PC's, for the rocket launcher) */
+		case _weapon_list_fuel_rod:
+			weapon_list_index = _weapon_list_rocket_launcher;
+			break;
 		}
 		break;
 
 	/* port: the PC version's sets. Covenant: the Covenant's weapons (the
-	needler for the rocket launcher: the Xbox's maps have no fuel rod) */
+	needler for the rocket launcher where the map has no fuel rod gun, as the
+	Xbox's maps have none) */
 	case _game_engine_weapons_covenant:
 		switch (weapon_list_index)
 		{
@@ -8147,27 +8198,42 @@ long game_engine_remap_weapon(
 
 		case _weapon_list_shotgun:
 		case _weapon_list_sniper_rifle:
+		case _weapon_list_flamethrower:
 			weapon_list_index = _weapon_list_needler;
 			break;
 
 		case _weapon_list_rocket_launcher:
-			weapon_list_index = _weapon_list_needler;
+			weapon_list_index = gearbox_items_weapon(_gearbox_item_fuel_rod) != NONE ?
+				_weapon_list_fuel_rod : _weapon_list_needler;
 			break;
 		}
 		break;
 
 	/* classic: the Xbox game's weapons (the flamethrower and the gravity
-	rifle are already rocket launchers) */
+	rifle are already rocket launchers; Halo PC's items' weapons, where a
+	map has them, are not placed) */
 	case _game_engine_weapons_classic:
+		if (weapon_list_index == _weapon_list_flamethrower || weapon_list_index == _weapon_list_fuel_rod)
+			return NONE;
 		break;
 
-	/* heavy weapons: rocket launchers */
+	/* heavy weapons: rocket launchers (and, where a map has Halo PC's
+	items, fuel rod guns for the Covenant's weapons, and flamethrowers) */
 	case _game_engine_weapons_heavy:
+		if (weapon_list_index == _weapon_list_flamethrower)
+			break;
+		if (gearbox_items_weapon(_gearbox_item_fuel_rod) != NONE &&
+			(weapon_list_index == _weapon_list_fuel_rod || weapon_list_index == _weapon_list_needler ||
+				weapon_list_index == _weapon_list_plasma_pistol || weapon_list_index == _weapon_list_plasma_rifle))
+		{
+			weapon_list_index = _weapon_list_fuel_rod;
+			break;
+		}
 		weapon_list_index = _weapon_list_rocket_launcher;
 		break;
 	}
 
-	return list_index_to_weapon_definition_index(weapon_list_index);
+	return game_engine_weapon_list_definition(weapon_list_index);
 }
 
 long game_engine_remap_object_definition(
@@ -9274,6 +9340,11 @@ long game_engine_loadout_weapon_definition(
 		}
 		return count ? available[local_random_range(0, count)] : NONE;
 	}
+	/* (Halo PC's, on a map given its items: gearbox_items.c) */
+	if (weapon == _loadout_weapon_flamethrower)
+		return gearbox_items_weapon(_gearbox_item_flamethrower);
+	if (weapon == _loadout_weapon_fuel_rod)
+		return gearbox_items_weapon(_gearbox_item_fuel_rod);
 	index = (short)(weapon - _loadout_weapon_assault_rifle);
 	return index >= 0 && index < NUMBEROF(list_indices) ? list_index_to_weapon_definition_index(list_indices[index]) :
 		NONE;

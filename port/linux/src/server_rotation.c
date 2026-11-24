@@ -39,7 +39,9 @@ static const char *const loadout_words[] = { "category", "custom", NULL };
 static const char *const loadout_weapon_words[] =
 {
 	"none", "random", "assault_rifle", "pistol", "shotgun", "sniper_rifle", "rocket_launcher", "plasma_pistol",
-	"plasma_rifle", "needler", NULL,
+	"plasma_rifle", "needler",
+	/* (Halo PC's, on a map given its items: port/linux/game/gearbox_items.c) */
+	"flamethrower", "fuel_rod", NULL,
 };
 static const char *const team_vehicles_words[] = { "gametype", "pc", "custom", NULL };
 

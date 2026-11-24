@@ -888,6 +888,18 @@ short cache_file_read(
 
 		return request_index;
 	}
+	/* port: and those of the Halo PC items' tags an Xbox map was given, from
+	the Halo PC map's files (port/linux/game/gearbox_items.c) */
+	{
+		extern boolean gearbox_items_read(long tag_index, long offset, long size, void *buffer);
+
+		if (gearbox_items_read(tag_index, offset, size, buffer))
+		{
+			*completion_flag_reference = TRUE;
+
+			return request_index;
+		}
+	}
 	match_assert(
 		"c:\\halo\\SOURCE\\cache\\cache_files_windows.c",
 		269,

@@ -1064,7 +1064,9 @@ STRING_INSERTS = {
 
 # a custom loadout's weapons (game_engine.h's _loadout_weapon_*)
 LOADOUT_WEAPONS = ["NONE", "RANDOM", "ASSAULT RIFLE", "PISTOL", "SHOTGUN", "SNIPER RIFLE", "ROCKET LAUNCHER",
-                   "PLASMA PISTOL", "PLASMA RIFLE", "NEEDLER"]
+                   "PLASMA PISTOL", "PLASMA RIFLE", "NEEDLER",
+                   # (Halo PC's, on the maps given its items: port/linux/game/gearbox_items.c)
+                   "FLAMETHROWER", "FUEL ROD GUN"]
 
 
 def LOADOUT_HELPS(slot: str) -> list:
