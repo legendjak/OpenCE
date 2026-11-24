@@ -71,8 +71,10 @@ def test_mirror_sees_the_window_view():
                        "\t\t&window->rasterizer_camera,\n\t\t&rasterizer_frustum,", end)
     assert begin < mirror < end < own
     objects = function(read("source/render/render_objects.c").replace("\r\n", "\n"), "render_object_list")
-    assert ("!data->shadow && render.camera.mirrored ?\n\t\t\t\tfirst_person_legs_mirror_node_matrices(object_index, "
-            "object_get_node_matrices(object_index)) :") in objects
+    # (a shadow first: with display.first_person_shadow, set back as the legs, first_person_legs.c; then a mirror's)
+    assert ("data->shadow ?\n\t\t\t\tfirst_person_legs_shadow_node_matrices(object_index, "
+            "object_get_node_matrices(object_index)) :\n\t\t\trender.camera.mirrored ?\n\t\t\t\t"
+            "first_person_legs_mirror_node_matrices(object_index, object_get_node_matrices(object_index)) :") in objects
 
 
 @pytest.mark.parametrize("case", CASES)

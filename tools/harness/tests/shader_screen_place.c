@@ -29,6 +29,8 @@ typedef int BOOL;
 static const char *config_string(const char *name) { return ""; }
 static int config_boolean(const char *name) { return 0; }
 BOOL xgpu_reversed_depth = TRUE;
+/* MCC's bumped environment shaders' combiner (mcc_environment_shader_gl.c): none here */
+static void mcc_environment_shader_emit(struct xgpu_text *text) { (void)text; }
 #ifdef HALO_GLES
 struct { const char *shading_language; } xgpu_capabilities = { "300 es" };
 #endif

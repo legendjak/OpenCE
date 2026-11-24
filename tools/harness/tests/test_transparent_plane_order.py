@@ -15,7 +15,7 @@ CASES = ["same-side", "opposite-side", "reverse-normal", "unrelated", "multiple-
          "linked", "linked-union", "invalid-links", "full-queue", "four-views", "no-glass",
          "external-sort", "fallback-flags", "invalid-order"]
 CONTROLS = {
-    "same-side-backwards": (("? -1 : 1;", "? 1 : -1;"), "same-side"),
+    "same-side-backwards": (("(side > 0) ? -1 : 1;", "(side > 0) ? 1 : -1;"), "same-side"),
     "camera-ignored": (("(distance > 0) == (side > 0)", "side > 0"), "opposite-side"),
     "model-left-in-wrong-gap": (("(short)PIN(original_gap[root], lower, upper)", "original_gap[root]"), "unrelated"),
     "not-adjacent-to-glass": (("for (phase = -1; phase <= 1; ++phase)", "for (phase = 1; phase >= -1; --phase)"), "unrelated"),
@@ -46,7 +46,8 @@ def generated(control=None):
     for name in ["transparent_planar_glass", "transparent_model_world_bounds", "transparent_plane_model_order",
                  "transparent_chain_root", "rasterizer_transparent_geometry_order_models"]:
         code += "\n" + function(raster, name)
-    for name in ["rasterizer_sort_internal", "group_sorted_indices_cmpfn", "rasterizer_sort_external"]:
+    for name in ["rasterizer_sort_internal", "transparent_object_glass_first", "group_sorted_indices_cmpfn",
+                 "rasterizer_sort_external"]:
         code += "\n" + function(core, name)
     if control:
         before, after = CONTROLS[control][0]

@@ -32,23 +32,32 @@ RENDER = 'port/linux/game/render_interpolation.c'
 
 def generated(fault=None):
     render = read(RENDER)
+    cseries = read('source/cseries/cseries.h')
     config = '\n'.join(['typedef unsigned char byte;', 'typedef unsigned short word;',
-                        'typedef struct { real i, j; } real_vector2d;', engine()]) + '\n'
+                        'typedef struct { real i, j; } real_vector2d;', engine(),
+                        # (the first-person state render_interpolation_tick resets the cut of: its node bits)
+                        'enum { ' + ', '.join(re.search(r'^\t(%s = \d+),' % name, cseries, re.M).group(1)
+                                             for name in ['LONG_BITS', 'LONG_BITS_BITS']) + ' };',
+                        re.search(r'^#define BIT_VECTOR_SIZE_IN_LONGS\(.*', cseries, re.M).group(),
+                        '#ifndef MAX', re.search(r'^#define MAX\(.*', cseries, re.M).group(), '#endif']) + '\n'
     code = '\n'.join(
         [re.search(r'^#define ' + name + r' .*$', render, re.M).group() for name in
          ['MAXIMUM_INTERPOLATED_OBJECTS', 'MAXIMUM_INTERPOLATED_NODES', 'OBJECT_SNAP_DISTANCE', 'NODE_SNAP_DISTANCE',
           'CORRECTION_DECAY', 'CORRECTION_NEGLIGIBLE', 'CORRECTION_MAXIMUM']] +
         [structure(render, name) for name in
-         ['interpolation_quaternion', 'interpolation_rotation', 'interpolated_object', 'interpolated_camera']] +
+         ['interpolation_quaternion', 'interpolation_rotation', 'interpolated_object', 'interpolated_camera',
+          'interpolated_first_person']] +
         [re.search(r'^static ' + name + r';$', render, re.M).group() for name in
          [r'struct interpolated_object \*interpolated_objects',
           r'struct interpolated_camera interpolated_cameras\[MAXIMUM_LOCAL_PLAYERS\]',
-          'long interpolation_tick', 'long interpolation_frame', 'boolean interpolation_rendering']] +
+          r'struct interpolated_first_person interpolated_first_person\[MAXIMUM_LOCAL_PLAYERS\]',
+          'long interpolation_tick', 'boolean interpolation_cut_pending', 'long interpolation_cut_tick = NONE',
+          'long interpolation_frame', 'boolean interpolation_rendering']] +
         ['static real interpolation_fraction = 1.0f;'] +
         [function(render, name) for name in
          ['lerp', 'point_lerp', 'vector_length', 'basis_is_rotation', 'quaternion_from_basis', 'basis_from_quaternion',
           'rotation_from_matrix', 'matrix_blend_rotations', 'correction_significant', 'correction_advance',
-          'correction_drawn', 'distance_squared', 'render_interpolation_tick',
+          'correction_drawn', 'distance_squared', 'pose_jumps', 'render_interpolation_tick',
           'render_interpolation_followed_nodes', 'render_interpolation_object_node_matrices']])
     if fault:
         code = mutated(code, *fault)
