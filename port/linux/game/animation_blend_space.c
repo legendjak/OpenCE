@@ -24,9 +24,19 @@ and a blend takes the space of the pose it keeps as it starts
 space is not drawn (animation_blend_space_crossed): the new animation's own
 pose is, at once, as a blend of no ticks would. Blends within one space are
 as they were. An entry is an object's only while its index is, and none is
-kept across a map's start or a game state's load (animation_blend_space_forget),
-after which a blend is drawn as the original drew it. Only the drawing of
-the pose changes: nothing the machines send or agree on.
+kept across a map's start (animation_blend_space_forget). A blend under way
+when a game state is loaded (a checkpoint saved partway through one) started
+from a pose whose space is not known: it is not drawn, the new animation's
+own pose is, as across spaces (animation_blend_space_loaded); a blend
+started after the load is noted as any other. Nothing else is skipped at a
+load: the screen is drawn again from the loaded state there.
+
+The pose is the object's node matrices, which its collision model's
+instance and the objects attached to its markers are placed by as well:
+those follow the pose drawn, at the new animation's at once, and do not
+fly across the scene with it. Nothing the machines send changes; a machine
+that loaded a game state while another did not can draw a blend under way
+at the load differently, for the blend's few ticks.
 */
 
 /* ---------- headers */
@@ -40,14 +50,16 @@ the pose changes: nothing the machines send or agree on.
 /* ---------- globals */
 
 /* by an object's index's absolute part: the object whose pose was last
-computed there (NONE: none) and whether in the world's space, and the
-object whose blend started there (NONE: none known) and from which */
+computed there (NONE: none) and whether in the world's space, the object
+whose blend started there (NONE: none known) and from which, and whether no
+blend has started there since a game state was loaded */
 static struct
 {
 	long computed_object_index;
 	boolean computed_world_relative;
 	long blend_object_index;
 	boolean blend_world_relative;
+	boolean blend_loaded;
 } animation_blend_spaces[MAXIMUM_OBJECTS_PER_MAP];
 
 /* ---------- public code */
@@ -61,6 +73,22 @@ void animation_blend_space_forget(
 	{
 		animation_blend_spaces[index].computed_object_index = NONE;
 		animation_blend_spaces[index].blend_object_index = NONE;
+		animation_blend_spaces[index].blend_loaded = FALSE;
+	}
+
+	return;
+}
+
+void animation_blend_space_loaded(
+	void)
+{
+	long index;
+
+	for (index = 0; index < MAXIMUM_OBJECTS_PER_MAP; index++)
+	{
+		animation_blend_spaces[index].computed_object_index = NONE;
+		animation_blend_spaces[index].blend_object_index = NONE;
+		animation_blend_spaces[index].blend_loaded = TRUE;
 	}
 
 	return;
@@ -91,6 +119,7 @@ void animation_blend_space_started(
 	{
 		return;
 	}
+	animation_blend_spaces[absolute_index].blend_loaded = FALSE;
 	if (animation_blend_spaces[absolute_index].computed_object_index == object_index)
 	{
 		animation_blend_spaces[absolute_index].blend_object_index = object_index;
@@ -111,8 +140,10 @@ boolean animation_blend_space_crossed(
 {
 	long absolute_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(object_index);
 
+	/* (a blend under way at a load: from a pose of a space not known) */
 	return object_index != NONE &&
 		absolute_index < MAXIMUM_OBJECTS_PER_MAP &&
-		animation_blend_spaces[absolute_index].blend_object_index == object_index &&
-		animation_blend_spaces[absolute_index].blend_world_relative != (world_relative != FALSE);
+		(animation_blend_spaces[absolute_index].blend_loaded ||
+			(animation_blend_spaces[absolute_index].blend_object_index == object_index &&
+				animation_blend_spaces[absolute_index].blend_world_relative != (world_relative != FALSE)));
 }

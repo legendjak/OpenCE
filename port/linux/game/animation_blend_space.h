@@ -11,8 +11,12 @@ object's, or the world's for a world-relative animation) not drawn
 
 /* ---------- prototypes */
 
-/* none noted: at a map's start and before a game state is loaded */
+/* none noted: at a map's start */
 void animation_blend_space_forget(
+	void);
+/* none noted, and a blend under way not known: before a game state is
+loaded */
+void animation_blend_space_loaded(
 	void);
 /* as an object's pose is computed (object_compute_node_matrices): whether
 in the world's space */
@@ -24,7 +28,8 @@ void animation_blend_space_computed(
 void animation_blend_space_started(
 	long object_index);
 /* whether the blend the object is in started from a pose in the other
-space than an animation world relative or not */
+space than an animation world relative or not, or before a game state was
+loaded */
 boolean animation_blend_space_crossed(
 	long object_index,
 	boolean world_relative);

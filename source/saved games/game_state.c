@@ -133,6 +133,7 @@ symbols in this file:
 void object_bounds_cache_invalidate(void);
 /* port: port/linux/game/animation_blend_space.c's */
 void animation_blend_space_forget(void);
+void animation_blend_space_loaded(void);
 
 /* port: riding taken from the settings after every load (bipeds.c) */
 void bipeds_riding_latch(void);
@@ -211,8 +212,9 @@ static game_state_before_load_proc before_load_procs[] =
 	/* port: (and the inputs their functions were computed from are not
 	theirs: objects.c's object_function_inputs) */
 	object_function_inputs_forget,
-	/* port: (nor the spaces their blends started from: animation_blend_space.c) */
-	animation_blend_space_forget,
+	/* port: (nor the spaces their blends started from, a blend under way
+	from one not known: animation_blend_space.c) */
+	animation_blend_space_loaded,
 };
 
 static game_state_after_load_proc after_load_procs[] =

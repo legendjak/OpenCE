@@ -13,29 +13,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from harness import CHECK_FAILED, build, function, mutated, read, run  # noqa: E402
 
 CASES = ["into the world's", "back to its own", "within one space", "the pose last computed", "nothing known",
-         "forgotten"]
+         "forgotten", "loaded"]
 
-FUNCTIONS = ["animation_blend_space_forget", "animation_blend_space_computed", "animation_blend_space_started",
-             "animation_blend_space_crossed"]
+FUNCTIONS = ["animation_blend_space_forget", "animation_blend_space_loaded", "animation_blend_space_computed",
+             "animation_blend_space_started", "animation_blend_space_crossed"]
 
 # a fault in the code and the case that must catch it
 NEGATIVE_CONTROLS = {
     # never crossed: the original's blend
-    "never-crossed": (("animation_blend_spaces[absolute_index].blend_world_relative != (world_relative != FALSE);",
-                       "FALSE;"), "into the world's"),
+    "never-crossed": (("animation_blend_spaces[absolute_index].blend_world_relative != (world_relative != FALSE)))",
+        "FALSE))"), "into the world's"),
     # the blend's space taken from the new animation, set before the blend starts
-    "space-of-the-new": (("animation_blend_spaces[absolute_index].blend_world_relative =\n"
-                          "\t\t\tanimation_blend_spaces[absolute_index].computed_world_relative;",
-                          "animation_blend_spaces[absolute_index].blend_world_relative = FALSE;"),
-                         "back to its own"),
+    "space-of-the-new": (("animation_blend_spaces[absolute_index].blend_world_relative =\n\t\t\tanimation_blend_spaces[absolute_index].computed_world_relative;",
+        "animation_blend_spaces[absolute_index].blend_world_relative = FALSE;"), "back to its own"),
     # crossed whatever the blend's space
-    "always-crossed": (("animation_blend_spaces[absolute_index].blend_world_relative != (world_relative != FALSE);",
-                        "TRUE;"), "within one space"),
+    "always-crossed": (("animation_blend_spaces[absolute_index].blend_world_relative != (world_relative != FALSE)))",
+        "TRUE))"), "within one space"),
     # an index's entry taken for another object there
-    "no-handle": (("\t\tanimation_blend_spaces[absolute_index].blend_object_index == object_index &&\n", ""),
-                  "nothing known"),
-    # nothing forgotten
-    "kept": (("\t\tanimation_blend_spaces[index].blend_object_index = NONE;\n\t}", "\t}"), "forgotten"),
+    "no-handle": (("(animation_blend_spaces[absolute_index].blend_object_index == object_index &&\n\t\t\t\t",
+        "("), "nothing known"),
+    # nothing forgotten at a map's start
+    "kept": (("\t\tanimation_blend_spaces[index].blend_object_index = NONE;\n\t\tanimation_blend_spaces[index].blend_loaded = FALSE;",
+        "\t\tanimation_blend_spaces[index].blend_loaded = FALSE;"), "forgotten"),
+    # a blend under way at a load drawn, from a pose of a space not known
+    "load-unknown": (("(animation_blend_spaces[absolute_index].blend_loaded ||",
+        "(FALSE ||"), "loaded"),
+    # a blend started after a load taken for one under way at it
+    "load-kept": (("\tanimation_blend_spaces[absolute_index].blend_loaded = FALSE;\n",
+        ""), "loaded"),
 }
 
 SOURCE = "port/linux/game/animation_blend_space.c"
@@ -56,7 +61,7 @@ def generated(fault=None):
 
 def test_wired():
     """object_start_interpolation notes the blend after keeping the pose; object_compute_node_matrices blends only
-    when not crossed, and notes the pose's space after; the game state forgets at a map's start and before a load."""
+    when not crossed, and notes the pose's space after; the game state forgets at a map's start, and before a load marks a blend under way as not known."""
     objects = read("source/objects/objects.c").replace("\r\n", "\n")
     start = function(objects, "object_start_interpolation")
     kept = start.index("&object->object.original_node_orientations")
@@ -67,7 +72,7 @@ def test_wired():
     assert compute.index("animation_blend_space_computed(object_index, world_relative);", blended) > blended
     state = read("source/saved games/game_state.c").replace("\r\n", "\n")
     procs = state[state.index("static game_state_before_load_proc before_load_procs[] ="):]
-    assert "\tanimation_blend_space_forget,\n" in procs[:procs.index("};")]
+    assert "\tanimation_blend_space_loaded,\n" in procs[:procs.index("};")]
     initialize = function(state, "game_state_initialize_for_new_map")
     assert "animation_blend_space_forget();" in initialize
 

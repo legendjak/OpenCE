@@ -104,6 +104,25 @@ int main(int argc, char **argv)
 		CHECK(!animation_blend_space_crossed(BISENTI, FALSE), "a pose kept across a load");
 		return 0;
 	}
+	/* a checkpoint saved partway through a blend: loaded, the blend under way
+	started from a pose whose space is not known, and is not drawn either way;
+	a blend started after the load is known again */
+	CASE("loaded")
+	{
+		animation_blend_space_computed(MARINE_2, FALSE);
+		animation_blend_space_started(MARINE_2);
+		animation_blend_space_loaded();
+		CHECK(animation_blend_space_crossed(MARINE_2, TRUE), "a blend under way at a load drawn into the world's");
+		CHECK(animation_blend_space_crossed(MARINE_2, FALSE), "a blend under way at a load drawn within its own");
+		animation_blend_space_computed(MARINE_2, TRUE);
+		animation_blend_space_started(MARINE_2);
+		CHECK(!animation_blend_space_crossed(MARINE_2, TRUE), "a blend started after the load not drawn");
+		CHECK(animation_blend_space_crossed(MARINE_2, FALSE), "a blend started after the load drawn across");
+		animation_blend_space_loaded();
+		animation_blend_space_forget();
+		CHECK(!animation_blend_space_crossed(BISENTI, TRUE), "a load's blends not known after a map's start");
+		return 0;
+	}
 
 	return 2;
 }
