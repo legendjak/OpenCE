@@ -165,8 +165,8 @@ int main(void){
  /* the keyboard's legend: its B and A, a texel to the pixel, on the stock background */
  menu_button_glyph_keyboard_legend(40,&background_bitmap);
  assert(legend_draws==2);
- assert(legend_rects[0].x0==371&&legend_rects[0].y0==414&&legend_rects[0].x1==403&&legend_rects[0].y1==446);
- assert(legend_rects[1].x0==471&&legend_rects[1].y0==414&&legend_rects[1].x1==503&&legend_rects[1].y1==446);
+ assert(legend_rects[0].x0==370&&legend_rects[0].y0==413&&legend_rects[0].x1==406&&legend_rects[0].y1==448);
+ assert(legend_rects[1].x0==470&&legend_rects[1].y0==413&&legend_rects[1].x1==505&&legend_rects[1].y1==448);
  /* drawn every frame, the background checked and the buttons' tags found once */
  menu_button_glyph_keyboard_legend(40,&background_bitmap);
  assert(legend_draws==4&&button_lookups==2);

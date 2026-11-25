@@ -268,9 +268,14 @@ static struct
 
 void menu_button_glyph_keyboard_legend(long background_index, struct bitmap_data const *background)
 {
-    static struct { char const *tag; short x, y; } const icons[] = {
-        {"ui\\shell\\bitmaps\\b_butn", 371, 414},
-        {"ui\\shell\\bitmaps\\a_butn", 471, 414}};
+    /* (each over the background's own, which it covers whole: the redraws'
+    ovals lie up to most of a texel within the 32 texels the stock bitmaps'
+    fill, so drawn at their size the stock B and A showed around them, a
+    low-res rim. Their ovals are drawn over the background's B at 371..392
+    by 414..440 and A at 471..491 by 414..439, a little past them) */
+    static struct { char const *tag; short x, y, width, height; } const icons[] = {
+        {"ui\\shell\\bitmaps\\b_butn", 370, 413, 36, 35},
+        {"ui\\shell\\bitmaps\\a_butn", 470, 413, 35, 35}};
     short i;
 
     if (background_index == NONE || !background || background->width != 1024 || background->height != 512)
@@ -315,8 +320,8 @@ void menu_button_glyph_keyboard_legend(long background_index, struct bitmap_data
         if (!bitmap || bitmap->width != 32 || bitmap->height != 32) continue;
         bounds.x0 = icons[i].x;
         bounds.y0 = icons[i].y;
-        bounds.x1 = (short)(icons[i].x + 32);
-        bounds.y1 = (short)(icons[i].y + 32);
+        bounds.x1 = (short)(icons[i].x + icons[i].width);
+        bounds.y1 = (short)(icons[i].y + icons[i].height);
         draw_bitmap_in_rect(bitmap, &bounds, &bounds, NULL, 0xffffffffUL, NULL, FALSE);
     }
 }
