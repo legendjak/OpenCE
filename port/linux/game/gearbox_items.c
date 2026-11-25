@@ -44,6 +44,10 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 #include "networking/network_game_manager.h"
 #include "scenario/scenario_definitions.h"
 #include "sound/sound_definitions.h"
+#include "items/weapon_definitions.h"
+#include "models/model_animation_definitions.h"
+#include "text/text_group.h"
+#include "interface/hud_definitions.h"
 #include "cache_file_formats.h"
 #include "custom_edition_cache.h"
 #include "mcc_cache.h"
@@ -71,6 +75,9 @@ records another */
 #define GEARBOX_ITEM_COLLECTION_TAG 'itmc'
 #define GEARBOX_SHADER_TAG 'shdr'
 #define GEARBOX_SOUND_TAG 'snd!'
+#define GEARBOX_ANIMATION_GRAPH_TAG 'antr'
+#define GEARBOX_STRING_LIST_TAG 'ustr'
+#define GEARBOX_HUD_GLOBALS_TAG 'hudg'
 
 /* a vehicle placement's bytes (tag_schema_scenario.c's unit_placement) */
 #define VEHICLE_PLACEMENT_BYTES 0x78
@@ -78,6 +85,15 @@ records another */
 /* the most placements taken from the Halo PC map (its maps have at most 8
 of the items' vehicles and 4 of their weapons) */
 #define MAXIMUM_GEARBOX_PLACEMENTS 64
+
+/* the Xbox map's blocks the animation grafts may replace, and the buffers
+they may make */
+#define MAXIMUM_GEARBOX_PATCHES 128
+#define MAXIMUM_GEARBOX_ALLOCATIONS 512
+/* a donor animation's place in a graft not yet decided */
+#define GRAFT_UNSEEN (-2)
+/* a seat's most weapon classes (tag_schema_models.c) */
+#define GEARBOX_MAXIMUM_WEAPON_CLASSES 16
 
 /* the first of the address set's slots */
 #define REWRITTEN_INITIAL_CAPACITY 0x4000
@@ -134,6 +150,26 @@ struct gearbox_root
 {
 	unsigned long group_tag;
 	char const *name;
+};
+
+/* one of the Xbox map's blocks an animation graft replaced, as it was */
+struct gearbox_block_patch
+{
+	struct tag_block *block;
+	struct tag_block original;
+};
+
+/* an animation graph's graft: the donor graph's animations it takes, and
+their places in the Xbox map's graph */
+struct gearbox_graft
+{
+	struct gearbox_import const *import;
+	struct animation_graph *map_graph;
+	struct animation_graph *donor;
+	short places[MAXIMUM_ANIMATIONS_PER_GRAPH];
+	short added[MAXIMUM_ANIMATIONS_PER_GRAPH];
+	short added_count;
+	boolean failed;
 };
 
 /* what an import is working on */
@@ -219,6 +255,13 @@ static struct
 	void *added_vehicles;
 	void *added_vehicle_palette;
 	void *added_netgame_equipment;
+	/* the animation grafts' replaced blocks and buffers */
+	struct gearbox_block_patch patches[MAXIMUM_GEARBOX_PATCHES];
+	short patch_count;
+	void *allocations[MAXIMUM_GEARBOX_ALLOCATIONS];
+	short allocation_count;
+	long grafted_classes;
+	long extended_string_lists;
 } gearbox_items_globals;
 
 /* ---------- prototypes */
@@ -910,6 +953,518 @@ static void gearbox_import_dispose(
 	return;
 }
 
+/* ---- the items' weapons held: a unit holds a weapon its animation graph
+has a weapon class for, by the weapon's label (units.c,
+unit_set_or_test_seat_and_weapon_label). The Xbox game's players could not
+hold the fuel rod gun (the Covenant's alone), so the Xbox map's player
+graph has no class for it; Halo PC's graph of the same name does. Its
+classes for the items' weapons that the Xbox map's graph has none for are
+grafted onto that graph's seats, with the animations they play; the Xbox
+graph's own classes and animations stay as they are. */
+
+/* a zeroed buffer kept until the map's tags go */
+static void *gearbox_allocate(
+	long size)
+{
+	void *block;
+
+	if (gearbox_items_globals.allocation_count >= MAXIMUM_GEARBOX_ALLOCATIONS)
+		return NULL;
+	block = malloc(size > 0 ? size : 1);
+	if (block)
+	{
+		memset(block, 0, size > 0 ? size : 1);
+		gearbox_items_globals.allocations[gearbox_items_globals.allocation_count++] = block;
+	}
+
+	return block;
+}
+
+/* the block given elements of its own, the one it had kept to give back */
+static boolean gearbox_block_replace(
+	struct tag_block *block,
+	long count,
+	void *elements)
+{
+	struct gearbox_block_patch *patch;
+
+	if (gearbox_items_globals.patch_count >= MAXIMUM_GEARBOX_PATCHES)
+		return FALSE;
+	patch = &gearbox_items_globals.patches[gearbox_items_globals.patch_count++];
+	patch->block = block;
+	patch->original = *block;
+	block->count = count;
+	block->address = elements;
+
+	return TRUE;
+}
+
+/* the blocks given back, newest first, and the buffers let go */
+static void gearbox_patches_undo(
+	void)
+{
+	while (gearbox_items_globals.patch_count > 0)
+	{
+		struct gearbox_block_patch *patch = &gearbox_items_globals.patches[--gearbox_items_globals.patch_count];
+
+		*patch->block = patch->original;
+	}
+	while (gearbox_items_globals.allocation_count > 0)
+		free(gearbox_items_globals.allocations[--gearbox_items_globals.allocation_count]);
+
+	return;
+}
+
+static void *gearbox_donor_element(
+	struct gearbox_import const *import,
+	struct tag_block const *block,
+	long index,
+	unsigned long element_bytes)
+{
+	return custom_edition_cache_block_element(import->donor_tags, import->donor_bytes, block, index, element_bytes);
+}
+
+/* whether one of the Xbox map's seats has a weapon class for the label */
+static boolean gearbox_xbox_seat_holds(
+	struct animation_graph_unit_seat const *seat,
+	char const *label)
+{
+	long class_index;
+
+	for (class_index = 0; class_index < seat->weapon_classes.count; class_index++)
+	{
+		struct animation_graph_weapon_class const *weapon_class =
+			TAG_BLOCK_GET_ELEMENT(&seat->weapon_classes, class_index, struct animation_graph_weapon_class);
+		long type_index;
+
+		for (type_index = 0; type_index < weapon_class->weapon_types.count; type_index++)
+		{
+			if (!csstrcasecmp(TAG_BLOCK_GET_ELEMENT(&weapon_class->weapon_types, type_index,
+				struct animation_graph_weapon_type)->label, label))
+			{
+				return TRUE;
+			}
+		}
+	}
+
+	return FALSE;
+}
+
+/* the donor seat's weapon class for the label, or NULL */
+static struct animation_graph_weapon_class *gearbox_donor_seat_class(
+	struct gearbox_import const *import,
+	struct animation_graph_unit_seat const *seat,
+	char const *label)
+{
+	long class_index;
+
+	for (class_index = 0; class_index < seat->weapon_classes.count; class_index++)
+	{
+		struct animation_graph_weapon_class *weapon_class =
+			gearbox_donor_element(import, &seat->weapon_classes, class_index, sizeof(*weapon_class));
+		long type_index;
+
+		for (type_index = 0; weapon_class && type_index < weapon_class->weapon_types.count; type_index++)
+		{
+			struct animation_graph_weapon_type const *type =
+				gearbox_donor_element(import, &weapon_class->weapon_types, type_index, sizeof(*type));
+
+			if (type && !csstrcasecmp(type->label, label))
+				return weapon_class;
+		}
+	}
+
+	return NULL;
+}
+
+/* the place in the Xbox map's graph of the donor graph's animation: the
+Xbox graph's of its name, else one added after its own (and what it leads
+to with it) */
+static short gearbox_graft_place(
+	struct gearbox_graft *graft,
+	short donor_index)
+{
+	struct animation const *animation;
+	long index;
+
+	if (donor_index == NONE)
+		return NONE;
+	if (donor_index < 0 || donor_index >= graft->donor->animations.count ||
+		donor_index >= MAXIMUM_ANIMATIONS_PER_GRAPH)
+	{
+		graft->failed = TRUE;
+		return NONE;
+	}
+	if (graft->places[donor_index] != GRAFT_UNSEEN)
+		return graft->places[donor_index];
+	animation = gearbox_donor_element(graft->import, &graft->donor->animations, donor_index, sizeof(*animation));
+	if (!animation)
+	{
+		graft->failed = TRUE;
+		return NONE;
+	}
+	for (index = 0; index < graft->map_graph->animations.count; index++)
+	{
+		if (!csstrcasecmp(TAG_BLOCK_GET_ELEMENT(&graft->map_graph->animations, index, struct animation)->name,
+			animation->name))
+		{
+			graft->places[donor_index] = (short)index;
+			return (short)index;
+		}
+	}
+	if (graft->map_graph->animations.count + graft->added_count >= MAXIMUM_ANIMATIONS_PER_GRAPH)
+	{
+		graft->failed = TRUE;
+		return NONE;
+	}
+	graft->places[donor_index] = (short)(graft->map_graph->animations.count + graft->added_count);
+	graft->added[graft->added_count++] = donor_index;
+	gearbox_graft_place(graft, animation->next_animation_index);
+	gearbox_graft_place(graft, animation->runtime_parent_animation_index);
+
+	return graft->places[donor_index];
+}
+
+/* the donor's list of animation indices `source` (a block in the donor's
+tags) in the Xbox map's graph's places, into `block` (its copy's, given a
+buffer of its own) */
+static boolean gearbox_graft_index_list(
+	struct gearbox_graft *graft,
+	struct tag_block const *source_block,
+	struct tag_block *block)
+{
+	struct animation_graph_animation_index *indices;
+	long index;
+
+	if (source_block->count <= 0)
+		return TRUE;
+	indices = gearbox_allocate(source_block->count * sizeof(*indices));
+	if (!indices)
+		return FALSE;
+	for (index = 0; index < source_block->count; index++)
+	{
+		struct animation_graph_animation_index const *source =
+			gearbox_donor_element(graft->import, source_block, index, sizeof(*source));
+
+		if (!source)
+		{
+			return FALSE;
+		}
+		indices[index].animation_index = gearbox_graft_place(graft, source->animation_index);
+	}
+	block->address = indices;
+
+	return !graft->failed;
+}
+
+/* a donor weapon class, copied with its lists in the Xbox map's graph's
+places, into `copy` */
+static boolean gearbox_graft_class(
+	struct gearbox_graft *graft,
+	struct animation_graph_weapon_class const *weapon_class,
+	struct animation_graph_weapon_class *copy)
+{
+	struct animation_graph_weapon_type *types = NULL;
+	long index;
+
+	*copy = *weapon_class;
+	if (!gearbox_graft_index_list(graft, &weapon_class->animations, &copy->animations))
+		return FALSE;
+	if (copy->weapon_types.count > 0)
+	{
+		types = gearbox_allocate(copy->weapon_types.count * sizeof(*types));
+		if (!types)
+			return FALSE;
+		for (index = 0; index < copy->weapon_types.count; index++)
+		{
+			struct animation_graph_weapon_type const *type =
+				gearbox_donor_element(graft->import, &weapon_class->weapon_types, index, sizeof(*type));
+
+			if (!type)
+			{
+				return FALSE;
+			}
+			types[index] = *type;
+			if (!gearbox_graft_index_list(graft, &type->animations, &types[index].animations))
+				return FALSE;
+		}
+		copy->weapon_types.address = types;
+	}
+	/* (its ik points are names, read where they are) */
+	if (copy->ik_points.count > 0 && !gearbox_donor_element(graft->import, &weapon_class->ik_points,
+		copy->ik_points.count - 1, sizeof(struct animation_graph_ik_point)))
+	{
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/* The items' weapons' classes the Xbox map's graph `map_graph` has none for,
+taken from the donor's graph of its name onto its seats. FALSE only when
+the map's tags cannot be given back as they were. */
+static boolean gearbox_graft_graph(
+	struct gearbox_import const *import,
+	struct animation_graph *map_graph,
+	struct animation_graph *donor,
+	char const *const *labels,
+	short label_count)
+{
+	struct gearbox_graft *graft = malloc(sizeof(struct gearbox_graft));
+	struct animation_graph_weapon_class *classes[GEARBOX_MAXIMUM_WEAPON_CLASSES];
+	struct animation *animations;
+	long seat_index;
+	long grafted = 0;
+	short index;
+
+	if (!graft)
+		return TRUE;
+	graft->import = import;
+	graft->map_graph = map_graph;
+	graft->donor = donor;
+	graft->added_count = 0;
+	graft->failed = FALSE;
+	for (index = 0; index < MAXIMUM_ANIMATIONS_PER_GRAPH; index++)
+		graft->places[index] = GRAFT_UNSEEN;
+	for (seat_index = 0; seat_index < map_graph->unit_seats.count && !graft->failed; seat_index++)
+	{
+		struct animation_graph_unit_seat *seat =
+			TAG_BLOCK_GET_ELEMENT(&map_graph->unit_seats, seat_index, struct animation_graph_unit_seat);
+		struct animation_graph_unit_seat const *donor_seat = NULL;
+		struct animation_graph_weapon_class *seat_classes;
+		short class_count = 0;
+		long donor_seat_index;
+
+		for (donor_seat_index = 0; donor_seat_index < donor->unit_seats.count && !donor_seat; donor_seat_index++)
+		{
+			struct animation_graph_unit_seat const *candidate =
+				gearbox_donor_element(import, &donor->unit_seats, donor_seat_index, sizeof(*candidate));
+
+			if (candidate && !csstrcasecmp(candidate->label, seat->label))
+				donor_seat = candidate;
+		}
+		for (index = 0; donor_seat && index < label_count; index++)
+		{
+			struct animation_graph_weapon_class *weapon_class;
+			short known;
+
+			if (gearbox_xbox_seat_holds(seat, labels[index]))
+				continue;
+			weapon_class = gearbox_donor_seat_class(import, donor_seat, labels[index]);
+			for (known = 0; weapon_class && known < class_count; known++)
+			{
+				if (classes[known] == weapon_class)
+					weapon_class = NULL;
+			}
+			if (weapon_class && seat->weapon_classes.count + class_count < GEARBOX_MAXIMUM_WEAPON_CLASSES)
+				classes[class_count++] = weapon_class;
+		}
+		if (!class_count)
+			continue;
+		seat_classes = gearbox_allocate((seat->weapon_classes.count + class_count) * sizeof(*seat_classes));
+		if (!seat_classes)
+		{
+			graft->failed = TRUE;
+			break;
+		}
+		if (seat->weapon_classes.count > 0)
+			memcpy(seat_classes, seat->weapon_classes.address, seat->weapon_classes.count * sizeof(*seat_classes));
+		for (index = 0; index < class_count && !graft->failed; index++)
+		{
+			if (!gearbox_graft_class(graft, classes[index], &seat_classes[seat->weapon_classes.count + index]))
+				graft->failed = TRUE;
+		}
+		if (graft->failed || !gearbox_block_replace(&seat->weapon_classes, seat->weapon_classes.count + class_count,
+			seat_classes))
+		{
+			graft->failed = TRUE;
+			break;
+		}
+		grafted += class_count;
+	}
+	/* the animations they play that the graph has none of, after its own */
+	if (!graft->failed && graft->added_count)
+	{
+		animations = gearbox_allocate((map_graph->animations.count + graft->added_count) * sizeof(*animations));
+		if (!animations)
+		{
+			graft->failed = TRUE;
+		}
+		else
+		{
+			memcpy(animations, map_graph->animations.address, map_graph->animations.count * sizeof(*animations));
+			for (index = 0; index < graft->added_count; index++)
+			{
+				struct animation *animation = &animations[map_graph->animations.count + index];
+
+				*animation = *(struct animation *)gearbox_donor_element(import, &donor->animations,
+					graft->added[index], sizeof(*animation));
+				animation->next_animation_index = animation->next_animation_index == NONE ? NONE :
+					graft->places[animation->next_animation_index];
+				animation->runtime_parent_animation_index = animation->runtime_parent_animation_index == NONE ? NONE :
+					graft->places[animation->runtime_parent_animation_index];
+				/* (its sounds are the donor graph's list's) */
+				animation->sound_index = NONE;
+			}
+			if (!gearbox_block_replace(&map_graph->animations, map_graph->animations.count + graft->added_count, animations))
+				graft->failed = TRUE;
+		}
+	}
+	if (graft->failed)
+	{
+		free(graft);
+		return FALSE;
+	}
+	gearbox_items_globals.grafted_classes += grafted;
+	free(graft);
+
+	return TRUE;
+}
+
+/* every Xbox map's animation graph whose Halo PC graph of its name has
+classes for the items' weapons that it has none for; FALSE if one cannot be
+grafted (none is then) */
+static boolean gearbox_import_grafts(
+	struct gearbox_import const *import)
+{
+	char const *labels[NUMBER_OF_GEARBOX_WEAPONS];
+	short label_count = 0;
+	short root;
+	long index;
+
+	for (root = FIRST_GEARBOX_WEAPON_ROOT; root < NUMBER_OF_GEARBOX_ROOTS; root++)
+	{
+		struct weapon_definition *weapon = import->roots[root] == NONE ? NULL :
+			custom_edition_cache_tag_get(import->donor_tags, import->donor_bytes,
+				(unsigned long)import->donor_instances[import->roots[root]].tag_index, GEARBOX_WEAPON_TAG,
+				sizeof(*weapon));
+
+		if (weapon && weapon->weapon.label[0] && memchr(weapon->weapon.label, 0, sizeof(weapon->weapon.label)))
+			labels[label_count++] = weapon->weapon.label;
+	}
+	for (index = 0; label_count && index < import->xbox_count; index++)
+	{
+		struct cache_file_tag_instance const *instance = &import->xbox_instances[index];
+		struct animation_graph *donor;
+		long donor_index;
+
+		if ((unsigned long)instance->group_tag != GEARBOX_ANIMATION_GRAPH_TAG || !instance->base_address ||
+			!instance->name)
+		{
+			continue;
+		}
+		donor_index = gearbox_import_donor_tag(import, GEARBOX_ANIMATION_GRAPH_TAG, instance->name);
+		donor = donor_index == NONE ? NULL : custom_edition_cache_tag_get(import->donor_tags, import->donor_bytes,
+			(unsigned long)import->donor_instances[donor_index].tag_index, GEARBOX_ANIMATION_GRAPH_TAG, sizeof(*donor));
+		if (donor && !gearbox_graft_graph(import, instance->base_address, donor, labels, label_count))
+		{
+			error(_error_silent, "gearbox items: Halo PC's animations for the items' weapons cannot be added to '%s'",
+				instance->name);
+			gearbox_patches_undo();
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+/* ---- the items' text: Halo PC added the fuel rod gun's to the end of the
+HUD's item messages ("Picked up a fuel rod gun"), which an item names by
+its index, past the Xbox map's list's end. Halo PC's list stands for the
+Xbox map's when it is the Xbox map's, string for string, with more after
+them: every index the Xbox map's tags name finds the same string. (Only
+that list: Halo PC's longer multiplayer and pause menu lists would change
+what the Xbox map's game says and shows.) */
+
+/* whether the donor string `donor_string` (an element of a list in the
+donor's tags) is the Xbox map's `map_string` */
+static boolean gearbox_strings_match(
+	struct gearbox_import const *import,
+	struct tag_data const *map_string,
+	struct tag_data const *donor_string)
+{
+	uint32_t donor_size;
+	void *donor_text;
+
+	if (!donor_string)
+		return FALSE;
+	if (map_string && map_string->size == 0 && donor_string->size == 0)
+		return TRUE;
+	donor_text = custom_edition_cache_data_get(import->donor_tags, import->donor_bytes, donor_string, &donor_size);
+	if (!donor_text)
+		return FALSE;
+	/* (one past the Xbox list's end only lies in the donor's tags) */
+	return !map_string || (map_string->size == (long)donor_size && map_string->address &&
+		!memcmp(map_string->address, donor_text, donor_size));
+}
+
+/* whether the Xbox map's tag (absolute index) is the item messages list of
+one of its HUD globals */
+static boolean gearbox_item_messages(
+	struct gearbox_import const *import,
+	long tag_index)
+{
+	long index;
+
+	for (index = 0; index < import->xbox_count; index++)
+	{
+		struct cache_file_tag_instance const *instance = &import->xbox_instances[index];
+		struct hud_globals_definition const *hud_globals = instance->base_address;
+
+		if ((unsigned long)instance->group_tag == GEARBOX_HUD_GLOBALS_TAG && hud_globals &&
+			hud_globals->messaging.hud_item_messages.index != NONE &&
+			DATUM_INDEX_TO_ABSOLUTE_INDEX(hud_globals->messaging.hud_item_messages.index) == tag_index)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+/* the Xbox map's HUD item messages Halo PC's of their name extend, Halo
+PC's in the grown table; how many lists */
+static long gearbox_import_string_lists(
+	struct gearbox_import const *import)
+{
+	long replaced = 0;
+	long index;
+
+	for (index = 0; index < import->xbox_count; index++)
+	{
+		struct cache_file_tag_instance *instance = &gearbox_items_globals.instances[index];
+		struct string_list const *map_list = instance->base_address;
+		struct string_list const *donor_list;
+		long donor_index, string_index;
+		boolean extends = TRUE;
+
+		if ((unsigned long)instance->group_tag != GEARBOX_STRING_LIST_TAG || !map_list || !instance->name ||
+			gearbox_items_globals.donor_handles[index] != NONE || !gearbox_item_messages(import, index))
+		{
+			continue;
+		}
+		donor_index = gearbox_import_donor_tag(import, GEARBOX_STRING_LIST_TAG, instance->name);
+		donor_list = donor_index == NONE ? NULL : custom_edition_cache_tag_get(import->donor_tags, import->donor_bytes,
+			(unsigned long)import->donor_instances[donor_index].tag_index, GEARBOX_STRING_LIST_TAG, sizeof(*donor_list));
+		if (!donor_list || donor_list->strings.count <= map_list->strings.count)
+			continue;
+		for (string_index = 0; extends && string_index < donor_list->strings.count; string_index++)
+		{
+			extends = gearbox_strings_match(import,
+				string_index < map_list->strings.count ?
+					TAG_BLOCK_GET_ELEMENT(&map_list->strings, string_index, struct tag_data) : NULL,
+				gearbox_donor_element(import, &donor_list->strings, string_index, sizeof(struct tag_data)));
+		}
+		if (!extends)
+			continue;
+		instance->base_address = import->donor_instances[donor_index].base_address;
+		gearbox_items_globals.donor_handles[index] = import->donor_instances[donor_index].tag_index;
+		replaced++;
+	}
+
+	return replaced;
+}
+
 /* the items taken from the donor loaded into the Xbox map's tags and its
 scenario `scenario`; FALSE (nothing of them taken) if they cannot be */
 static boolean gearbox_import(
@@ -1008,6 +1563,9 @@ static boolean gearbox_import(
 		{
 			long added = 0, replaced = 0;
 
+			/* (without them the weapons are placed, but not held) */
+			gearbox_import_grafts(&import);
+			gearbox_items_globals.extended_string_lists = gearbox_import_string_lists(&import);
 			for (index = 0; index < import.donor_count; index++)
 			{
 				added += import.states[index] == _donor_tag_added;
@@ -1019,8 +1577,9 @@ static boolean gearbox_import(
 					import.states[import.roots[root]] != _donor_tag_unseen ? import.handles[import.roots[root]] : NONE;
 			}
 			error(_error_silent,
-				"gearbox items: %ld tags added and %ld of the map's replaced by Halo PC's; %ld vehicles and %ld netgame equipment placed",
-				added, replaced, vehicle_count, equipment_count);
+				"gearbox items: %ld tags added and %ld of the map's replaced by Halo PC's; %ld vehicles and %ld netgame equipment placed; %ld weapon classes added to its animations; %ld HUD item message lists extended",
+				added, replaced, vehicle_count, equipment_count, gearbox_items_globals.grafted_classes,
+				gearbox_items_globals.extended_string_lists);
 			success = TRUE;
 		}
 		else
@@ -1136,6 +1695,7 @@ void gearbox_items_tags_unloaded(
 
 	if (!gearbox_items_globals.loaded)
 		return;
+	gearbox_patches_undo();
 	if (scenario)
 	{
 		scenario->vehicles = gearbox_items_globals.vehicles;

@@ -97,7 +97,10 @@ after a load), as their reviews asked.
   (`port/linux/game/gearbox_items.c`). The gametype's vehicle options place
   the rocket warthogs and Banshees (PC, or counts; the default set places the
   Xbox's vehicles alone); the weapons follow the weapon set (Classic leaves
-  them out) and can be a custom loadout's. This adds tags to a map at load,
+  them out) and can be a custom loadout's. The Xbox's players could not hold
+  the fuel rod gun, so Halo PC's player animations for it are added to the
+  Xbox map's (its own are kept), and its pickup message to the HUD's. This
+  adds tags to a map at load,
   which the project's rules do not allow upstream: it is this build's alone.
   A network game records whether its map has them (network version 1046), and
   a machine that differs from the host is told why it cannot join.
