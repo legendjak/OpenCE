@@ -351,16 +351,18 @@ void *tag_validate_state_save(
 void tag_validate_state_restore(
 	void *saved);
 
-/* Calls visit on each tag reference's index (with the reference's group)
-and each tag index (with 0) of the tag of group group_tag whose root is at
-root, laid out as this build's (a Custom Edition map's tags are once
-converted), whose blocks all lie in the region_size bytes at region: visit
-may change the index. FALSE if the group is not known or a block leaves the
-region (the walk stops there). */
+/* Calls visit on each tag reference's index (with the reference's group,
+and the reference) and each tag index (with 0, and NULL) of the tag of group
+group_tag whose root is at root, laid out as this build's (a Custom Edition
+map's tags are once converted), whose blocks all lie in the region_size
+bytes at region: visit may change the index (and a reference's name). FALSE
+if the group is not known or a block leaves the region (the walk stops
+there). */
 typedef void (*tag_validate_index_proc)(
 	void *context,
 	long *tag_index,
-	unsigned long group_tag);
+	unsigned long group_tag,
+	struct tag_reference *reference);
 boolean tag_validate_references_walk(
 	unsigned long group_tag,
 	void *root,

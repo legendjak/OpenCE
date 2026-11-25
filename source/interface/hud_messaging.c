@@ -116,6 +116,7 @@ symbols in this file:
 
 #include "mcc_hud_draw.h" /* port: port/linux/game/mcc_hud_draw.c */
 #include "mcc_cache.h" /* port: preserve MCC-authored gameplay icons */
+#include "gearbox_items.h" /* port: port/linux/game/gearbox_items.c */
 #include "cseries/cseries.h"
 
 #include "cseries/errors.h"
@@ -550,6 +551,9 @@ static void render_state_bitmap(
 		return;
 	if (icon->frame_rate)
 		frame_index = game_time_get() / icon->frame_rate;
+	/* port: an icon past the end of the map's sheet, Halo PC's fuel rod
+	gun's on a map given Halo PC's items, from Halo PC's sheet */
+	bitmap_group_index = gearbox_items_messaging_icons(bitmap_group_index, icon->sequence_index);
 	hud_retrieve_bitmap_and_bounding_rect(
 		bitmap_group_index,
 		icon->sequence_index,

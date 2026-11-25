@@ -48,6 +48,7 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 #include "models/model_animation_definitions.h"
 #include "text/text_group.h"
 #include "interface/hud_definitions.h"
+#include "bitmaps/bitmap_group.h"
 #include "cache_file_formats.h"
 #include "custom_edition_cache.h"
 #include "mcc_cache.h"
@@ -78,6 +79,9 @@ records another */
 #define GEARBOX_ANIMATION_GRAPH_TAG 'antr'
 #define GEARBOX_STRING_LIST_TAG 'ustr'
 #define GEARBOX_HUD_GLOBALS_TAG 'hudg'
+#define GEARBOX_BITMAP_TAG 'bitm'
+/* what a Halo PC bitmap added beside the Xbox map's of its name is called */
+#define GEARBOX_OWN_NAME_SUFFIX " (halo pc)"
 
 /* a vehicle placement's bytes (tag_schema_scenario.c's unit_placement) */
 #define VEHICLE_PLACEMENT_BYTES 0x78
@@ -187,6 +191,9 @@ struct gearbox_import
 	in the grown table */
 	byte *states;
 	long *handles;
+	/* the names of the donor tags added beside the Xbox map's of their name
+	(NULL: their own) */
+	char const **own_names;
 	/* the donor tags whose references are to be rewritten */
 	long *queue;
 	long queue_count;
@@ -195,6 +202,8 @@ struct gearbox_import
 	long rewritten_capacity;
 	long rewritten_count;
 	long roots[NUMBER_OF_GEARBOX_ROOTS];
+	/* the donor's HUD messaging icons (absolute index), or NONE */
+	long messaging_icons;
 	/* for each of the Xbox map's tags: whether the items' tags alone use it
 	(gearbox_import_items_only) */
 	byte *items_only;
@@ -262,6 +271,8 @@ static struct
 	short allocation_count;
 	long grafted_classes;
 	long extended_string_lists;
+	/* Halo PC's HUD messaging icons in the grown table (NONE: none) */
+	long messaging_icons;
 } gearbox_items_globals;
 
 /* ---------- prototypes */
@@ -272,6 +283,9 @@ int config_boolean(char const *name);
 void *cache_files_tag_instances(long *count);
 void cache_files_set_tag_instances(void *instances, long count);
 boolean tag_index_is_group(long tag_index, long group_tag);
+
+static void *gearbox_allocate(long size);
+static void gearbox_patches_undo(void);
 
 /* ---------- private code */
 
@@ -398,12 +412,14 @@ static long gearbox_import_donor_index(
 static void gearbox_use_visit(
 	void *context,
 	long *tag_index,
-	unsigned long group_tag)
+	unsigned long group_tag,
+	struct tag_reference *reference)
 {
 	struct gearbox_use_walk *walk = context;
 	long index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*tag_index);
 
 	(void)group_tag;
+	(void)reference;
 	if (*tag_index == NONE || index >= walk->import->xbox_count || index == walk->walked ||
 		walk->import->xbox_instances[index].tag_index != *tag_index)
 	{
@@ -486,6 +502,39 @@ static boolean gearbox_import_items_only(
 	return TRUE;
 }
 
+/* Whether the Xbox map's bitmap can stand for the donor's of its name: as
+many bitmaps and sequences, each bitmap of one size and format. Halo PC's
+HUD bitmaps are drawn at twice the Xbox's resolution (and Halo PC's HUD
+tags scaled for them as they were converted), and some have sequences the
+Xbox's lack (the rocket warthog's reticle): a Halo PC tag draws Halo PC's. */
+static boolean gearbox_bitmaps_alike(
+	struct gearbox_import const *import,
+	struct bitmap_group const *map_group,
+	struct bitmap_group const *donor_group)
+{
+	long index;
+
+	if (!map_group || !donor_group || map_group->bitmaps.count != donor_group->bitmaps.count ||
+		map_group->sequences.count != donor_group->sequences.count)
+	{
+		return FALSE;
+	}
+	for (index = 0; index < map_group->bitmaps.count; index++)
+	{
+		struct bitmap_data const *map_bitmap = TAG_BLOCK_GET_ELEMENT(&map_group->bitmaps, index, struct bitmap_data);
+		struct bitmap_data const *donor_bitmap = custom_edition_cache_block_element(import->donor_tags,
+			import->donor_bytes, &donor_group->bitmaps, index, sizeof(*donor_bitmap));
+
+		if (!donor_bitmap || map_bitmap->width != donor_bitmap->width || map_bitmap->height != donor_bitmap->height ||
+			map_bitmap->format != donor_bitmap->format)
+		{
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
 /* The handle the donor tag (absolute index `index`) has in the grown table:
 the Xbox map's of its group and name, or its own (added, or standing for the
 Xbox map's), its references then to be rewritten. */
@@ -511,6 +560,24 @@ static long gearbox_import_resolve(
 	}
 	name = custom_edition_cache_tag_name(import->donor_tags, import->donor_bytes, index);
 	map_tag = gearbox_import_xbox_tag(import, donor, name);
+	/* (a bitmap unlike the Xbox map's is added beside it, named apart, and the
+	Xbox map's tags keep theirs) */
+	if (map_tag != NONE && (unsigned long)donor->group_tag == GEARBOX_BITMAP_TAG && donor->base_address &&
+		!gearbox_items_own(name) && !import->items_only[map_tag] &&
+		!gearbox_bitmaps_alike(import, import->xbox_instances[map_tag].base_address,
+			custom_edition_cache_tag_get(import->donor_tags, import->donor_bytes, (unsigned long)donor->tag_index,
+				GEARBOX_BITMAP_TAG, sizeof(struct bitmap_group))))
+	{
+		char *own_name = gearbox_allocate((long)(strlen(name) + strlen(GEARBOX_OWN_NAME_SUFFIX) + 1));
+
+		if (own_name)
+		{
+			strcpy(own_name, name);
+			strcat(own_name, GEARBOX_OWN_NAME_SUFFIX);
+			import->own_names[index] = own_name;
+			map_tag = NONE;
+		}
+	}
 	if (map_tag != NONE && ((!gearbox_items_own(name) && !import->items_only[map_tag]) || !donor->base_address))
 	{
 		import->states[index] = _donor_tag_xbox;
@@ -611,7 +678,8 @@ table (tag_validate_references_walk) */
 static void gearbox_import_visit(
 	void *context,
 	long *tag_index,
-	unsigned long group_tag)
+	unsigned long group_tag,
+	struct tag_reference *reference)
 {
 	struct gearbox_import *import = context;
 	long index;
@@ -621,6 +689,12 @@ static void gearbox_import_visit(
 		return;
 	index = gearbox_import_donor_index(import, *tag_index);
 	*tag_index = index != NONE ? gearbox_import_resolve(import, index) : NONE;
+	/* (a reference is also found by its name: verify_tag_reference) */
+	if (reference && index != NONE && import->own_names[index])
+	{
+		reference->name = (char *)import->own_names[index];
+		reference->name_length = (long)strlen(import->own_names[index]);
+	}
 
 	return;
 }
@@ -909,7 +983,8 @@ static boolean gearbox_import_table(
 		if (import->states[index] == _donor_tag_added)
 		{
 			*instance = *donor;
-			instance->name = (char *)custom_edition_cache_tag_name(import->donor_tags, import->donor_bytes, index);
+			instance->name = import->own_names[index] ? (char *)import->own_names[index] :
+				(char *)custom_edition_cache_tag_name(import->donor_tags, import->donor_bytes, index);
 			instance->tag_index = import->handles[index];
 		}
 		else if (import->states[index] == _donor_tag_replaces)
@@ -949,6 +1024,8 @@ static void gearbox_import_dispose(
 		free(import->rewritten);
 	if (import->items_only)
 		free(import->items_only);
+	if (import->own_names)
+		free((void *)import->own_names);
 
 	return;
 }
@@ -1374,7 +1451,11 @@ its index, past the Xbox map's list's end. Halo PC's list stands for the
 Xbox map's when it is the Xbox map's, string for string, with more after
 them: every index the Xbox map's tags name finds the same string. (Only
 that list: Halo PC's longer multiplayer and pause menu lists would change
-what the Xbox map's game says and shows.) */
+what the Xbox map's game says and shows.) Its messaging icons (the one
+"Hold X to swap for" shows) are drawn otherwise: Halo PC's sheet is of
+another format and its sprites a little smaller, so the Xbox map's stays,
+and an icon past its end is drawn from Halo PC's
+(gearbox_items_messaging_icons). */
 
 /* whether the donor string `donor_string` (an element of a list in the
 donor's tags) is the Xbox map's `map_string` */
@@ -1495,7 +1576,10 @@ static boolean gearbox_import(
 	import.states = malloc(import.donor_count);
 	import.handles = malloc(import.donor_count * sizeof(long));
 	import.queue = malloc(import.donor_count * sizeof(long));
-	if (!import.states || !import.handles || !import.queue || !gearbox_import_items_only(&import))
+	import.own_names = malloc(import.donor_count * sizeof(char const *));
+	if (import.own_names)
+		memset(import.own_names, 0, import.donor_count * sizeof(char const *));
+	if (!import.states || !import.handles || !import.queue || !import.own_names || !gearbox_import_items_only(&import))
 	{
 		error(_error_silent, "gearbox items: out of memory");
 		gearbox_import_dispose(&import);
@@ -1542,12 +1626,25 @@ static boolean gearbox_import(
 		}
 	}
 
-	/* their tags, and those they name */
+	/* their tags, and those they name; and Halo PC's HUD messaging icons, of
+	which the fuel rod gun's is one (gearbox_items_messaging_icons) */
 	for (root = 0; root < NUMBER_OF_GEARBOX_ROOTS; root++)
 	{
 		if (import.roots[root] != NONE)
 			gearbox_import_resolve(&import, import.roots[root]);
 	}
+	import.messaging_icons = NONE;
+	for (index = 0; index < import.donor_count && import.messaging_icons == NONE; index++)
+	{
+		struct hud_globals_definition const *hud_globals = custom_edition_cache_tag_get(import.donor_tags,
+			import.donor_bytes, (unsigned long)import.donor_instances[index].tag_index, GEARBOX_HUD_GLOBALS_TAG,
+			sizeof(*hud_globals));
+
+		if (hud_globals)
+			import.messaging_icons = gearbox_import_donor_index(&import, hud_globals->messaging.messaging_icons.index);
+	}
+	if (import.messaging_icons != NONE)
+		gearbox_import_resolve(&import, import.messaging_icons);
 	for (index = 0; index < equipment_count; index++)
 	{
 		struct scenario_netgame_equipment const *placement = custom_edition_cache_block_element(import.donor_tags,
@@ -1561,7 +1658,7 @@ static boolean gearbox_import(
 		if (gearbox_import_placements(&import, donor_scenario, scenario, vehicle_placements, vehicle_roots,
 			vehicle_count, equipment, equipment_count))
 		{
-			long added = 0, replaced = 0;
+			long added = 0, replaced = 0, own_named = 0;
 
 			/* (without them the weapons are placed, but not held) */
 			gearbox_import_grafts(&import);
@@ -1570,15 +1667,18 @@ static boolean gearbox_import(
 			{
 				added += import.states[index] == _donor_tag_added;
 				replaced += import.states[index] == _donor_tag_replaces;
+				own_named += import.own_names[index] != NULL;
 			}
 			for (root = 0; root < NUMBER_OF_GEARBOX_ROOTS; root++)
 			{
 				gearbox_items_globals.roots[root] = import.roots[root] != NONE &&
 					import.states[import.roots[root]] != _donor_tag_unseen ? import.handles[import.roots[root]] : NONE;
 			}
+			gearbox_items_globals.messaging_icons = import.messaging_icons != NONE &&
+				import.states[import.messaging_icons] != _donor_tag_unseen ? import.handles[import.messaging_icons] : NONE;
 			error(_error_silent,
-				"gearbox items: %ld tags added and %ld of the map's replaced by Halo PC's; %ld vehicles and %ld netgame equipment placed; %ld weapon classes added to its animations; %ld HUD item message lists extended",
-				added, replaced, vehicle_count, equipment_count, gearbox_items_globals.grafted_classes,
+				"gearbox items: %ld tags added (%ld Halo PC bitmaps beside the map's of their names) and %ld of the map's replaced by Halo PC's; %ld vehicles and %ld netgame equipment placed; %ld weapon classes added to its animations; %ld HUD item message lists extended",
+				added, own_named, replaced, vehicle_count, equipment_count, gearbox_items_globals.grafted_classes,
 				gearbox_items_globals.extended_string_lists);
 			success = TRUE;
 		}
@@ -1679,6 +1779,7 @@ void gearbox_items_tags_loaded(
 	if (!gearbox_import(donor, scenario))
 	{
 		error(_error_silent, "gearbox items: not added to '%s'", map_name);
+		gearbox_patches_undo();
 		custom_edition_cache_donor_unload();
 		return;
 	}
@@ -1732,6 +1833,24 @@ long gearbox_items_weapon(
 		return NONE;
 
 	return gearbox_items_globals.roots[FIRST_GEARBOX_WEAPON_ROOT + weapon];
+}
+
+long gearbox_items_messaging_icons(
+	long bitmap_group_index,
+	short sequence_index)
+{
+	if (!gearbox_items_globals.loaded || gearbox_items_globals.messaging_icons == NONE || sequence_index < 0 ||
+		gearbox_items_globals.messaging_icons == bitmap_group_index)
+	{
+		return bitmap_group_index;
+	}
+	if (bitmap_group_index != NONE && tag_index_is_group(bitmap_group_index, GEARBOX_BITMAP_TAG) &&
+		sequence_index < ((struct bitmap_group *)tag_get(GEARBOX_BITMAP_TAG, bitmap_group_index))->sequences.count)
+	{
+		return bitmap_group_index;
+	}
+
+	return gearbox_items_globals.messaging_icons;
 }
 
 boolean gearbox_items_read(

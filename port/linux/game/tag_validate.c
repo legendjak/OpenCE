@@ -2055,12 +2055,12 @@ static void references_walk_fields(
 			{
 				struct tag_reference *reference = (struct tag_reference *)address;
 
-				walk->visit(walk->context, &reference->index, reference->group_tag);
+				walk->visit(walk->context, &reference->index, reference->group_tag, reference);
 				break;
 			}
 
 			case _tag_schema_tag_index:
-				walk->visit(walk->context, (long *)address, 0);
+				walk->visit(walk->context, (long *)address, 0, NULL);
 				break;
 
 			case _tag_schema_block:

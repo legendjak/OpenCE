@@ -7999,8 +7999,11 @@ long game_engine_remap_vehicle(
 		}
 
 		/* port: the per-team sets decide at placement
-		(game_engine_vehicle_placement_allowed) */
-		switch (game_variant_options_get()->vehicle_set[0] == game_variant_options_get()->vehicle_set[1] ?
+		(game_engine_vehicle_placement_allowed), and custom counts alone: the
+		variant's own set is the gametype's it was made from (a dedicated
+		server's rules over a built-in gametype) */
+		switch (game_variant_options_get()->vehicle_set[0] == game_variant_options_get()->vehicle_set[1] &&
+			game_variant_options_get()->vehicle_set[0] != VARIANT_VEHICLE_SET_CUSTOM ?
 			global_variant.universal_variant.vehicle_set : _game_engine_vehicles_default)
 		{
 		case _game_engine_vehicles_none:
@@ -8042,15 +8045,25 @@ static long game_engine_weapon_list_index(
 	return weapon_definition_index_to_list_index(weapon_definition_index);
 }
 
-/* port: ... and the weapon of a place */
+/* port: ... and the weapon of a place (a Halo PC or Custom Edition map's
+list has the fuel rod gun in Halo PC's place, after the grenades) */
 static long game_engine_weapon_list_definition(
 	long weapon_list_index)
 {
-	if (weapon_list_index == _weapon_list_fuel_rod)
+	if (weapon_list_index == _weapon_list_fuel_rod && gearbox_items_loaded())
 		return gearbox_items_weapon(_gearbox_item_fuel_rod);
 	if (weapon_list_index == _weapon_list_flamethrower && gearbox_items_loaded())
 		return gearbox_items_weapon(_gearbox_item_flamethrower);
 	return list_index_to_weapon_definition_index(weapon_list_index);
+}
+
+/* port: whether the map's flamethrower and fuel rod gun are Halo PC's,
+which its multiplayer has: those of Halo PC's items an Xbox map was given
+(gearbox_items.c), or a Halo PC or Custom Edition map's own */
+static boolean game_engine_pc_weapons(
+	void)
+{
+	return gearbox_items_loaded() || custom_edition_cache_tags_loaded();
 }
 
 long game_engine_remap_weapon(
@@ -8059,9 +8072,9 @@ long game_engine_remap_weapon(
 	/* port: (Halo PC's items' weapons too: game_engine_weapon_list_index) */
 	long weapon_list_index =
 		game_engine_weapon_list_index(weapon_definition_index);
-	/* port: whether Halo PC's items are on the map, a flamethrower and fuel
-	rod gun of its multiplayer weapons */
-	boolean gearbox = gearbox_items_loaded();
+	/* port: whether the map's flamethrower and fuel rod gun are Halo PC's
+	multiplayer weapons */
+	boolean gearbox = game_engine_pc_weapons();
 
 	if (weapon_list_index == _weapon_list_ball ||
 		weapon_list_index == _weapon_list_flag ||
@@ -8203,7 +8216,7 @@ long game_engine_remap_weapon(
 			break;
 
 		case _weapon_list_rocket_launcher:
-			weapon_list_index = gearbox_items_weapon(_gearbox_item_fuel_rod) != NONE ?
+			weapon_list_index = game_engine_weapon_list_definition(_weapon_list_fuel_rod) != NONE ?
 				_weapon_list_fuel_rod : _weapon_list_needler;
 			break;
 		}
@@ -8222,7 +8235,7 @@ long game_engine_remap_weapon(
 	case _game_engine_weapons_heavy:
 		if (weapon_list_index == _weapon_list_flamethrower)
 			break;
-		if (gearbox_items_weapon(_gearbox_item_fuel_rod) != NONE &&
+		if (game_engine_weapon_list_definition(_weapon_list_fuel_rod) != NONE &&
 			(weapon_list_index == _weapon_list_fuel_rod || weapon_list_index == _weapon_list_needler ||
 				weapon_list_index == _weapon_list_plasma_pistol || weapon_list_index == _weapon_list_plasma_rifle))
 		{
@@ -9340,11 +9353,12 @@ long game_engine_loadout_weapon_definition(
 		}
 		return count ? available[local_random_range(0, count)] : NONE;
 	}
-	/* (Halo PC's, on a map given its items: gearbox_items.c) */
+	/* (Halo PC's: on a map given its items, gearbox_items.c, or a Halo PC or
+	Custom Edition map's own) */
 	if (weapon == _loadout_weapon_flamethrower)
-		return gearbox_items_weapon(_gearbox_item_flamethrower);
+		return game_engine_pc_weapons() ? game_engine_weapon_list_definition(_weapon_list_flamethrower) : NONE;
 	if (weapon == _loadout_weapon_fuel_rod)
-		return gearbox_items_weapon(_gearbox_item_fuel_rod);
+		return game_engine_pc_weapons() ? game_engine_weapon_list_definition(_weapon_list_fuel_rod) : NONE;
 	index = (short)(weapon - _loadout_weapon_assault_rifle);
 	return index >= 0 && index < NUMBEROF(list_indices) ? list_index_to_weapon_definition_index(list_indices[index]) :
 		NONE;

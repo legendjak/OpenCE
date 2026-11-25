@@ -47,6 +47,13 @@ or NONE when the map has none */
 long gearbox_items_weapon(
 	short weapon);
 
+/* The bitmap the HUD's messaging icon `sequence_index` is drawn from, the
+HUD's sheet `bitmap_group_index`: Halo PC's, for one past its end (the fuel
+rod gun's: gearbox_items.c). */
+long gearbox_items_messaging_icons(
+	long bitmap_group_index,
+	short sequence_index);
+
 /* A read (cache_file_read's) of a tag the items brought: served from the
 Halo PC map's files at once, and TRUE; FALSE for any other tag's. */
 boolean gearbox_items_read(
