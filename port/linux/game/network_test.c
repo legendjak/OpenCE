@@ -84,6 +84,7 @@ Called from the main loop every frame (main.c).
 #include "../src/p2p.h" /* port: port/linux/src/p2p.c, p2p_lobby.c */
 #include "network_chat.h"
 #include "network_voice.h"
+#include "server_gametypes.h"
 #include "halo_keyboard.h"
 
 #include <math.h>
@@ -135,8 +136,8 @@ static struct
 {
 	boolean checked;
 	short mode;
-	char map_name[64];
-	char variant_name[64];
+	char map_name[256];
+	char variant_name[256];
 	/* "local:": a local (split screen) game, not a system link one */
 	boolean local;
 	/* ... the variant of this game, of variant_name's list; and the seconds
@@ -1607,7 +1608,7 @@ void network_test_update(
 			if (!network_test.map_set && network_test.setup_seconds >= 1.0f && global_network_game_server_get())
 			{
 				char path[128];
-				char variant_name[64];
+				char variant_name[256];
 				struct game_variant variant;
 
 				/* (a level of its own path, else a multiplayer map's name) */
@@ -1630,6 +1631,30 @@ void network_test_update(
 					struct game_variant_options options;
 					/* (one of OpenCE's gametypes by its name: game_modes.c) */
 					boolean opence = game_modes_gametype_by_name(variant_name, &variant, &options);
+
+					/* (or a gametype with rules, as a dedicated server's rotation
+					writes one, "slayer+loadout=custom+primary_weapon=pistol":
+					server_gametypes.c) */
+					if (!opence && strchr(variant_name, '+'))
+					{
+						static struct server_entry entry;
+						char text[sizeof(entry.text)];
+						char reason[128];
+
+						snprintf(text, sizeof(text), "%s:%s", network_test.map_name, variant_name);
+						reason[0] = 0;
+						if (server_rotation_parse_entry(text, (int)strlen(text), &entry) && !entry.rejected[0] &&
+							server_gametype_build(entry.gametype, entry.rules, entry.rule_count, &variant, &options,
+								reason, (long)sizeof(reason)))
+						{
+							opence = TRUE;
+						}
+						else
+						{
+							platform_log("network test: the gametype %s cannot be played: %s", variant_name,
+								entry.rejected[0] ? entry.rejected : reason);
+						}
+					}
 
 					network_game_server_change_map_name(global_network_game_server_get(), path);
 					/* the variant, as picking the game settings does */
