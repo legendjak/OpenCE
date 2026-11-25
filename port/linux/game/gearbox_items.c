@@ -1088,8 +1088,19 @@ void gearbox_items_tags_loaded(
 	if (scenario->type != _scenario_type_multiplayer)
 		return;
 	version = gearbox_items_map_version(map_name);
+	/* (why not, when they are on: the Halo PC folder not set, or without
+	this map) */
 	if (!version)
+	{
+		if (config_boolean("game.gearbox_items"))
+		{
+			error(_error_silent, "gearbox items: not added to '%s': %s", map_name,
+				!custom_edition_install_present() ? "paths.custom_edition does not name the Halo PC folder" :
+				!gearbox_items_donor_path(map_name, path) ? "its name is too long" :
+				"the Halo PC folder's maps folder has no multiplayer map of its name");
+		}
 		return;
+	}
 	/* (a network game's machines all have them, or none does: the host's
 	version is the game's) */
 	if (game && game->map.name[0] && !csstrcasecmp(tag_name_strip_path(game->map.name), map_name) &&
