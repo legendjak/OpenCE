@@ -1335,7 +1335,9 @@ static const struct config_setting config_settings[] =
 	{ "debug.test_input", _config_string, "\"\"", "HALO_TEST_INPUT", _environment_value, _platform_all,
 		"\"bot:<seed>\" plays controller 1 with a scripted pattern (automated\n"
 		"network tests); \"look:<seed>\" stands still, only turning and looking\n"
-		"up and down; \"fire\" stands still, the trigger held; \"menu:<buttons>\"\n"
+		"up and down; \"fire\" holds the trigger, turning slowly after 6\n"
+		"seconds; \"fly\" goes\n"
+		"ahead, looking up a second of each eight; \"menu:<buttons>\"\n"
 		"presses menu buttons one a second (a, b, x, y, up, down, left, right,\n"
 		"start, back or wait, separated by spaces or commas), for testing the\n"
 		"menus; empty for none." },

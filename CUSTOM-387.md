@@ -7,7 +7,7 @@ with `git cherry-pick -x`, not its branch: most were opened against
 requests whose branches merged another one were applied as one commit of
 their net change (#635, #729, #733, #735, #737).
 
-The build is network version **1047**, a number of its own: it plays only
+The build is network version **1048**, a number of its own: it plays only
 with copies of itself (`port/linux/NETCODE.md`). Saved games of build 387
 still load: nothing here adds to the game state's allocations.
 
@@ -102,10 +102,19 @@ after a load), as their reviews asked.
   Xbox map's (its own are kept), and its pickup message to the HUD's. This
   adds tags to a map at load,
   which the project's rules do not allow upstream: it is this build's alone.
-  A network game records whether its map has them (network version 1047), and
+  A network game records whether its map has them (network version 1048), and
   a machine that differs from the host is told why it cannot join. Their HUD
   is drawn with the high-res textures and upscaling of Halo Custom Edition's
-  stock sheets (Halo PC's are the same, checked by their pixels).
+  stock sheets (Halo PC's are the same, checked by their pixels), and the
+  two reticles Halo PC added (the fuel rod gun's and the rocket warthog's)
+  are redrawn in vectors (`tools/pc_reticles.py`). The Xbox's maps were not
+  made for flying: a Banshee is kept inside the map, put back where it last
+  was over its ground when it leaves it.
+- Halo PC's own maps get the high-res HUD too: their tags are all Halo PC's,
+  so each sheet counts as stock, its pixels checked as Custom Edition's are.
+- The carnage report's B and A are drawn at the menus' size, and Halo PC's
+  maps' "ESCAPE = Quit    ENTER = Continue" shows the buttons to a
+  controller's player; the line is moved left when it would run off the edge.
 - Halo PC's six maps of its own (Ice Fields, Death Island, Danger Canyon,
   Infinity, Timberland, Gephyrophobia), found in `paths.custom_edition`'s
   maps, are listed under MULTIPLAYER after the Xbox's maps, with Halo PC's
