@@ -171,10 +171,16 @@ boolean menu_button_glyph_inline(short icon, short port, rectangle2d *cursor)
     box.x0 += 4;
     box.x1 = box.x0 + (keyboard_prompt_enabled(port) ? menu_button_glyph_key_width(icon) : 26);
     box.y0 = middle - 13; box.y1 = middle + 13;
+    /* (the carnage report's: beside its word, not above it, custom-387) */
+    if (menu_button_glyphs_forced)
+    {
+        box.x0 += 7; box.x1 += 7;
+        box.y0 += 3; box.y1 += 3;
+    }
     draw_string_get_color(&color);
     if (!menu_button_glyph_draw(icon, port, &box, NULL,
         ((pixel32)(color.alpha * 255.0f) << 24) | 0xffffffUL)) return FALSE;
-    cursor->x0 = box.x1;
+    cursor->x0 = menu_button_glyphs_forced ? box.x1 - 7 : box.x1;
     return TRUE;
 }
 
@@ -182,7 +188,9 @@ boolean menu_button_glyph_inline(short icon, short port, rectangle2d *cursor)
  * game), custom-387. Its A and B are drawn at the menus' size, as the menus'
  * legends' are, rather than the HUD's small message icons; Halo PC's maps'
  * prompt, which names keys ("ESCAPE = Quit    ENTER = Continue"), shows the
- * buttons instead while a controller was used last. The line is moved left
+ * buttons instead unless the keyboard's prompts are on for the player
+ * (display.keyboard_glyphs: a key pressed for a screenshot is not a
+ * keyboard player). The line is moved left
  * when it would run past the report's right edge. */
 void menu_button_glyph_postgame_prompt(rectangle2d *bounds, wchar_t const *prompt, short right_edge)
 {
@@ -201,7 +209,7 @@ void menu_button_glyph_postgame_prompt(rectangle2d *bounds, wchar_t const *promp
     length = wcslen(prompt);
     if (length >= NUMBEROF(text)) length = NUMBEROF(text) - 1;
     memcpy(text, prompt, length * sizeof(wchar_t)); text[length] = 0;
-    if (!keyboard_prompt_active(0))
+    if (!keyboard_prompt_enabled(0))
     {
         for (index = 0; index < (short)NUMBEROF(keys); index++)
         {
