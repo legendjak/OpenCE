@@ -7,7 +7,7 @@ with `git cherry-pick -x`, not its branch: most were opened against
 requests whose branches merged another one were applied as one commit of
 their net change (#635, #729, #733, #735, #737).
 
-The build is network version **1046**, a number of its own: it plays only
+The build is network version **1047**, a number of its own: it plays only
 with copies of itself (`port/linux/NETCODE.md`). Saved games of build 387
 still load: nothing here adds to the game state's allocations.
 
@@ -91,7 +91,7 @@ after a load), as their reviews asked.
 
 - Retail Halo PC's maps (cache version 7) run as Custom Edition maps do,
   from `paths.custom_edition` (for example `D:\Games`).
-- Halo PC's rocket warthog, Banshee, flamethrower and fuel rod gun on the
+- Halo PC's rocket warthog, Banshee, Shade, flamethrower and fuel rod gun on the
   game's own multiplayer maps (`game.gearbox_items`, on): taken with their
   placements from the Halo PC map of the same name in that install, at load
   (`port/linux/game/gearbox_items.c`). The gametype's vehicle options place
@@ -102,8 +102,22 @@ after a load), as their reviews asked.
   Xbox map's (its own are kept), and its pickup message to the HUD's. This
   adds tags to a map at load,
   which the project's rules do not allow upstream: it is this build's alone.
-  A network game records whether its map has them (network version 1046), and
-  a machine that differs from the host is told why it cannot join.
+  A network game records whether its map has them (network version 1047), and
+  a machine that differs from the host is told why it cannot join. Their HUD
+  is drawn with the high-res textures and upscaling of Halo Custom Edition's
+  stock sheets (Halo PC's are the same, checked by their pixels).
+- Halo PC's six maps of its own (Ice Fields, Death Island, Danger Canyon,
+  Infinity, Timberland, Gephyrophobia), found in `paths.custom_edition`'s
+  maps, are listed under MULTIPLAYER after the Xbox's maps, with Halo PC's
+  pictures (read from its `ui.map` and `bitmaps.map`) and descriptions,
+  rather than under CUSTOM MULTIPLAYER.
+- A controller's player sees "Hold [BACK] for score" with the button drawn as
+  a cap (BACK, VIEW, SHARE, CREATE or -, by the controller), as a keyboard's
+  player sees its key: the HUD's sheets have no art for that button.
+- A weapon's first- and third-person particle streams are drawn apart on a
+  Halo PC or Custom Edition map, or one with Halo PC's items, as Halo PC
+  draws them (MCC maps already were): the flamethrower's flames leave its
+  nozzle in first person, rather than rising from the player's feet.
 - Text chat in public internet games a player hosts (listed in the server
   browser), as the host's TEXT CHAT says (`network.public_text_chat`, on).
   The main build keeps such games without chat, on the host and on every

@@ -102,7 +102,7 @@ Halo Custom Edition maps are placed in `custom_maps` folder, not in the `maps` f
 
 Retail Halo PC's maps (version 7, build 01.00.00.0564 and its patches) run the same way: set `paths.custom_edition` in `config.toml` to the Halo PC install (for example `D:\Games`), whose `maps` folder holds them with its `bitmaps.map` and `sounds.map`; they need no `loc.map`.
 
-With Halo PC's maps there (`paths.custom_edition`), the game's own multiplayer maps also get Halo PC's rocket warthog, Banshee, flamethrower and fuel rod gun where Halo PC placed them (`game.gearbox_items`, on by default). The vehicles come with the gametype's vehicle options (PC, or counts of rocket warthogs and Banshees); the weapons follow the weapon set, and a custom loadout can start players with either. Everyone in a network game needs the same Halo PC maps.
+With Halo PC's maps there (`paths.custom_edition`), the game's own multiplayer maps also get Halo PC's rocket warthog, Banshee, Shade, flamethrower and fuel rod gun where Halo PC placed them (`game.gearbox_items`, on by default). The vehicles come with the gametype's vehicle options (PC, or counts of rocket warthogs, Banshees and gun turrets); the weapons follow the weapon set, and a custom loadout can start players with either. Everyone in a network game needs the same Halo PC maps.
 
 Halo PC Gearbox exclusive maps (Ice Fields, Death Island, Danger Canyon, Infinity, Timberland and Gephyrophobia) **are not included by default**. They would need to be copied over from your existing Halo Custom Edition install's `maps` folder into `custom_maps` folder too.
 

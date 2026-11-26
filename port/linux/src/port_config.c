@@ -565,12 +565,13 @@ static const struct config_setting config_settings[] =
 		"as the game's own maps' are before they run; false refuses them\n"
 		"(docs/custom_edition_caches.md)." },
 	{ "game.gearbox_items", _config_boolean, "true", "HALO_GEARBOX_ITEMS", _environment_value, _platform_all,
-		"Add Halo PC's rocket warthog, Banshee, flamethrower and fuel rod gun to\n"
-		"the game's multiplayer maps, where Halo PC placed them, from the Halo\n"
-		"PC maps in paths.custom_edition's maps folder (with game.custom_edition\n"
-		"on). The gametype's vehicle options place the rocket warthogs and\n"
-		"Banshees (PC, or custom counts; the default set places the Xbox's\n"
-		"vehicles alone), and its weapon set and loadout the weapons. Every\n"
+		"Add Halo PC's rocket warthog, Banshee, Shade, flamethrower and fuel rod\n"
+		"gun to the game's multiplayer maps, where Halo PC placed them, from the\n"
+		"Halo PC maps in paths.custom_edition's maps folder (with\n"
+		"game.custom_edition on). The gametype's vehicle options place the\n"
+		"rocket warthogs, Banshees and Shades (PC, or custom counts; the default\n"
+		"set places the Xbox's vehicles alone), and its weapon set and loadout\n"
+		"the weapons. Every\n"
 		"player of a network game needs the same; false: the Xbox's maps as\n"
 		"they are." },
 	{ "bots.count", _config_integer, "0", "HALO_BOTS", _environment_value, _platform_all,
@@ -1334,9 +1335,10 @@ static const struct config_setting config_settings[] =
 	{ "debug.test_input", _config_string, "\"\"", "HALO_TEST_INPUT", _environment_value, _platform_all,
 		"\"bot:<seed>\" plays controller 1 with a scripted pattern (automated\n"
 		"network tests); \"look:<seed>\" stands still, only turning and looking\n"
-		"up and down; \"menu:<buttons>\" presses menu buttons one a second (a,\n"
-		"b, x, y, up, down, left, right, start, back or wait, separated by\n"
-		"spaces or commas), for testing the menus; empty for none." },
+		"up and down; \"fire\" stands still, the trigger held; \"menu:<buttons>\"\n"
+		"presses menu buttons one a second (a, b, x, y, up, down, left, right,\n"
+		"start, back or wait, separated by spaces or commas), for testing the\n"
+		"menus; empty for none." },
 	{ "debug.virtual_gamepads", _config_integer, "0", "HALO_VIRTUAL_GAMEPADS", _environment_value, _platform_desktop,
 		"Attach this many SDL virtual gamepads (0 to 4), which the game takes for\n"
 		"gamepads plugged in, for testing split screen; debug.virtual_gamepad_script\n"
