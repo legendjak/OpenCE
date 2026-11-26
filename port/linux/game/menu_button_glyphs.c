@@ -24,10 +24,14 @@ unsigned long config_changes(void);
 void platform_log(char const *format, ...);
 struct bitmap_data *hud_hires_button_bitmap(short style, short slot);
 
+/* while the carnage report's prompt is drawn (menu_button_glyph_postgame_prompt):
+ * its buttons at the menus' size whatever display.menu_button_glyphs says */
+static boolean menu_button_glyphs_forced;
+
 static boolean menu_button_glyph_enabled(short button, short port)
 {
     return button >= 0 && button < 4 && port >= 0 && port < 4 &&
-        config_boolean("display.menu_button_glyphs") &&
+        (menu_button_glyphs_forced || config_boolean("display.menu_button_glyphs")) &&
         !strcmp(config_string("display.menus"), "pc");
 }
 
@@ -172,6 +176,70 @@ boolean menu_button_glyph_inline(short icon, short port, rectangle2d *cursor)
         ((pixel32)(color.alpha * 255.0f) << 24) | 0xffffffUL)) return FALSE;
     cursor->x0 = box.x1;
     return TRUE;
+}
+
+/* The carnage report's prompt (game_engine.c: B to quit, A to pick the next
+ * game), custom-387. Its A and B are drawn at the menus' size, as the menus'
+ * legends' are, rather than the HUD's small message icons; Halo PC's maps'
+ * prompt, which names keys ("ESCAPE = Quit    ENTER = Continue"), shows the
+ * buttons instead while a controller was used last. The line is moved left
+ * when it would run past the report's right edge. */
+void menu_button_glyph_postgame_prompt(rectangle2d *bounds, wchar_t const *prompt, short right_edge)
+{
+    static struct { wchar_t const *key; wchar_t const *button; } const keys[] = {
+        {L"ESCAPE", L"%b-button"}, {L"ENTER", L"%a-button"}};
+    wchar_t text[128], run[128];
+    rectangle2d measure = *bounds, shifted = *bounds;
+    real_rectangle2d ink;
+    wchar_t const *at;
+    real width = 0.0f;
+    short run_length = 0;
+    size_t length;
+    short index;
+
+    if (!prompt) return;
+    length = wcslen(prompt);
+    if (length >= NUMBEROF(text)) length = NUMBEROF(text) - 1;
+    memcpy(text, prompt, length * sizeof(wchar_t)); text[length] = 0;
+    if (!keyboard_prompt_active(0))
+    {
+        for (index = 0; index < (short)NUMBEROF(keys); index++)
+        {
+            wchar_t *found = wcsstr(text, keys[index].key);
+            size_t key_length = wcslen(keys[index].key), button_length = wcslen(keys[index].button);
+            if (!found || wcslen(text) - key_length + button_length >= NUMBEROF(text)) continue;
+            memmove(found + button_length, found + key_length, (wcslen(found + key_length) + 1) * sizeof(wchar_t));
+            memcpy(found, keys[index].button, button_length * sizeof(wchar_t));
+        }
+    }
+    /* (its width: the runs of text, and each button, 4 and 26 wide) */
+    measure.x0 = 0; measure.x1 = 2048;
+    for (at = text; ; at++)
+    {
+        boolean token = *at == L'%' && (!wcsncmp(at + 1, L"a-button", 8) || !wcsncmp(at + 1, L"b-button", 8));
+        if (token || !*at)
+        {
+            run[run_length] = 0;
+            if (run_length)
+            {
+                rasterizer_unicode_string_ink_bounds(&measure, run, &ink);
+                width += ink.x1 - ink.x0 + 6.0f;
+            }
+            run_length = 0;
+            if (!*at) break;
+            width += 30.0f;
+            at += 8;
+            continue;
+        }
+        if (*at != L'	' && run_length < (short)NUMBEROF(run) - 1) run[run_length++] = *at;
+    }
+    if (right_edge < 0)
+        right_edge = (short)(bounds->x1 - 48);
+    if (right_edge > 0 && shifted.x0 + (short)width > right_edge)
+        shifted.x0 = (short)MAX(right_edge - (short)width, 0);
+    menu_button_glyphs_forced = TRUE;
+    draw_string_and_hack_in_icons(&shifted, NULL, NULL, 0, text, FALSE);
+    menu_button_glyphs_forced = FALSE;
 }
 
 wchar_t const *menu_button_glyph_join_hint(boolean can_join, short port)

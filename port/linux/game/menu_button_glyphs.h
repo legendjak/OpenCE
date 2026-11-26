@@ -7,6 +7,12 @@ boolean menu_button_glyph_draw(short button, short port, rectangle2d const *boun
     rectangle2d const *clip, pixel32 color);
 boolean menu_button_glyph_inline(short icon, short port, rectangle2d *cursor);
 
+/* The carnage report's prompt, its A and B at the menus' size, and Halo PC's
+ * maps' key names as buttons for a controller's player; kept left of
+ * right_edge (-1: 48 short of the bounds' right, where draw_string cuts it
+ * off; 0: anywhere). */
+void menu_button_glyph_postgame_prompt(rectangle2d *bounds, wchar_t const *prompt, short right_edge);
+
 /* Keep independent join instructions; suppress only duplicated legend actions. */
 wchar_t const *menu_button_glyph_join_hint(boolean can_join, short port);
 

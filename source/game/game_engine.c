@@ -605,6 +605,7 @@ struct network_game *network_game_server_get_game(struct network_game_server *se
 #include "server_team_switch.h" /* port: port/linux/game/server_team_switch.c */
 #include "latency_meter.h" /* port: port/linux/game/latency_meter.c */
 #include "touch_postgame.h" /* port: port/linux/game/touch_postgame.c */
+#include "menu_button_glyphs.h" /* port: port/linux/game/menu_button_glyphs.c */
 
 /* network_game_globals.c's */
 boolean network_game_distributed_client(void);
@@ -3002,13 +3003,9 @@ void game_engine_post_rasterize_post_game(
 					unicode_string_list_get_string(string_list_index, 0x48);
 			else
 				prompt = L"";
-			draw_string_and_hack_in_icons(
-				&bounds,
-				NULL,
-				NULL,
-				0,
-				prompt,
-				FALSE);
+			/* port: its buttons at the menus' size, and Halo PC's maps' key
+			names as buttons for a controller (custom-387) */
+			menu_button_glyph_postgame_prompt(&bounds, prompt, -1);
 			return;
 		}
 
@@ -3018,13 +3015,8 @@ void game_engine_post_rasterize_post_game(
 			prompt = unicode_string_list_get_string(string_list_index, 0x49);
 		else
 			prompt = L"";
-		draw_string_and_hack_in_icons(
-			&bounds,
-			NULL,
-			NULL,
-			0,
-			prompt,
-			FALSE);
+		/* port: as the host's prompt (above) */
+		menu_button_glyph_postgame_prompt(&bounds, prompt, -1);
 	}
 
 	return;
