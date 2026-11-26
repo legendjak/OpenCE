@@ -120,6 +120,11 @@ after a load), as their reviews asked.
   it would run off the edge.
 - Halo PC's crosshair warnings ("Reload", the rocket warthog's dots) are drawn
   with the Xbox's high-res texture: the sheets are laid out alike.
+- Fixed the far half of a map flickering out and in while moving (Halo PC's
+  Timberland, looking over a hill): the region of the screen seen through
+  each portal is widened by about two pixels before the next portal is
+  clipped by it, so the slivers seen along a row of portals at a slant no
+  longer come and go a millimetre apart (`source/structures/structure_visibility.c`).
 - Halo PC's maps' teleporters show the Xbox's swirling field rather than Halo
   PC's flat green one (`display.xbox_teleporters`, on): the Xbox's shader and
   bitmaps of that name are read from one of the game's own multiplayer maps

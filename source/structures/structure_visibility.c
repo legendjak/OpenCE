@@ -1652,6 +1652,77 @@ short structure_visibility_build_surfaces(
 		0);
 }
 
+/* port: how far a region seen through a portal is widened at each edge
+before the next portal is clipped by it (portal_region_widen), in the
+projection's units: about two pixels of 1080 lines */
+#define PORTAL_REGION_MARGIN 0.003f
+
+/* port: the region `region` (convex, wound counterclockwise, as every
+region seen is) widened by PORTAL_REGION_MARGIN at each edge into
+`result`. Looking at a slant along a row of portals (Halo PC's Timberland's
+outdoor clusters, over a hill's crest), each region seen through one is
+narrower than the last, down to slivers of a hundredth of the screen, and
+rows that meet again lead back into clusters already seen: the clipping
+(convex_hull2d_intersect, to 0.0001) kept a sliver from one place and lost
+it from the next a millimetre on, and the clusters past it, the far half of
+the map, flickered out and in as the camera moved. A region widened by a
+little before it clips the next portal holds the slivers from one frame to
+the next; seeing a cluster past one draws no more than the cluster holds,
+which the depth test hides where it is unseen. (A camera swept a step at a
+time along 3 paths on Timberland lost clusters for a single step 25 times,
+and none widened, seeing 3 to 5 clusters more of 35.) */
+static void portal_region_widen(
+	struct portal_hull const *region,
+	struct portal_hull *result)
+{
+	short count = region->vertex_count;
+	short index;
+
+	result->vertex_count = count;
+	for (index = 0; index < count; index++)
+	{
+		real_point2d const *previous = &region->vertices[(index + count - 1) % count];
+		real_point2d const *point = &region->vertices[index];
+		real_point2d const *next = &region->vertices[(index + 1) % count];
+		real_vector2d in, out, normal;
+		real length, along, distance = 0.f;
+
+		/* (each edge's outward normal: to its right, as the region turns
+		left; the point moved along their sum as far as moves each edge out
+		by the margin, at most four times the margin at a sharp corner) */
+		in.i = point->y - previous->y;
+		in.j = previous->x - point->x;
+		out.i = next->y - point->y;
+		out.j = point->x - next->x;
+		length = square_root(in.i * in.i + in.j * in.j);
+		if (length > 0.f)
+		{
+			in.i /= length;
+			in.j /= length;
+		}
+		length = square_root(out.i * out.i + out.j * out.j);
+		if (length > 0.f)
+		{
+			out.i /= length;
+			out.j /= length;
+		}
+		normal.i = in.i + out.i;
+		normal.j = in.j + out.j;
+		length = square_root(normal.i * normal.i + normal.j * normal.j);
+		if (length > 0.f)
+		{
+			normal.i /= length;
+			normal.j /= length;
+			along = normal.i * in.i + normal.j * in.j;
+			distance = along > 0.25f ? PORTAL_REGION_MARGIN / along : 4.f * PORTAL_REGION_MARGIN;
+		}
+		result->vertices[index].x = point->x + normal.i * distance;
+		result->vertices[index].y = point->y + normal.j * distance;
+	}
+
+	return;
+}
+
 static void structure_visibility_traverse_cluster(
 	short cluster_index,
 	struct portal_hull const *visible_region)
@@ -1795,10 +1866,19 @@ static void structure_visibility_traverse_cluster(
 						render.camera.z_far)))
 			{
 				struct portal_hull clipped_hull;
+				struct portal_hull widened_region;
+				struct portal_hull const *region = visible_region;
 
+				/* port: clipped by the region widened a little
+				(portal_region_widen) */
+				if (visible_region->vertex_count >= NUMBER_OF_VERTICES_PER_TRIANGLE)
+				{
+					portal_region_widen(visible_region, &widened_region);
+					region = &widened_region;
+				}
 				clipped_hull.vertex_count = convex_hull2d_intersect(
-					visible_region->vertex_count,
-					visible_region->vertices,
+					region->vertex_count,
+					region->vertices,
 					portal_hull.vertex_count,
 					portal_hull.vertices,
 					MAXIMUM_PORTAL_HULL_VERTICES,
