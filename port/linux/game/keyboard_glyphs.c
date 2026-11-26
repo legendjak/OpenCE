@@ -8,6 +8,13 @@
 #include "render/render.h"
 #include "text/draw_string.h"
 #include "rasterizer/rasterizer.h"
+#include "interface/hud.h"
+#include "interface/hud_definitions.h"
+#include "controller_glyphs.h"
+#include "controller_buttons.h"
+
+/* the HUD's button icon "%back-button" draws (ui_widget.c's _icon_back_button) */
+#define KEYBOARD_SCORE_HINT_BACK_ICON 13
 #include <string.h>
 #include <wchar.h>
 
@@ -112,7 +119,21 @@ int keyboard_hud_prompt(short local_player, short icon, rectangle2d *cursor, pix
     player = local_player_get_player_index(local_player);
     if (player == NONE) return FALSE;
     port = player_get(player)->local_player_index;
-    if (!keyboard_prompt_enabled(port)) return FALSE;
+    if (!keyboard_prompt_enabled(port))
+    {
+        /* A controller's BACK button: the HUD's sheets have no art for it
+         * (the Xbox's draws nothing; Halo PC's a weapon), so its name on a
+         * cap, as the keyboard's keys are drawn (custom-387) */
+        if (icon == KEYBOARD_SCORE_HINT_BACK_ICON)
+        {
+            short style = controller_glyph_style();
+            int family = controller_button_style_family(style);
+            keyboard_glyph_draw(family == CONTROLLER_PLAYSTATION ? (style == 7 ? "CREATE" : "SHARE") :
+                family == CONTROLLER_SWITCH ? "-" : style == 3 ? "VIEW" : "BACK", cursor, color, FALSE);
+            return TRUE;
+        }
+        return FALSE;
+    }
     if (icon == 28 || icon == 29 || icon == 31)
     {
         keyboard_glyph_draw(icon == 28 ? "Enter" : icon == 29 ? "Esc" : "Mouse", cursor, color, FALSE);
@@ -150,13 +171,18 @@ int keyboard_hud_inline(short icon, rectangle2d *cursor)
 
 /* The score hint is authored as plain BACK text (PC maps may use %s).
  * Only its identified game-engine message is offered here. Preserve the
- * surrounding localized text; unknown wording stays native. */
+ * surrounding localized text; unknown wording stays native. A keyboard's
+ * player sees its score key; a controller's the HUD's BACK button icon,
+ * as "Press %y-button to switch to" shows its Y, when the map's HUD has
+ * that icon (custom-387). */
 void keyboard_score_hint(long player, wchar_t *text, long capacity)
 {
     wchar_t *at;
     wchar_t const *token = L"%back-button";
     size_t old_length, tail, replacement = wcslen(token), length;
-    if (player == NONE || !keyboard_prompt_enabled(player_get(player)->local_player_index)) return;
+    if (player == NONE) return;
+    if (!keyboard_prompt_enabled(player_get(player)->local_player_index) &&
+        (!hud_globals || hud_globals->messaging.button_icons.count <= KEYBOARD_SCORE_HINT_BACK_ICON)) return;
     at = wcsstr(text, L"BACK"); old_length = 4;
     if (!at) { at = wcsstr(text, L"%s"); old_length = 2; }
     if (!at) return;

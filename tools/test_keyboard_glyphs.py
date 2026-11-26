@@ -86,6 +86,11 @@ static int halo_keyboard_binding_label(int action,int slot,char *out,unsigned in
 static void keyboard_glyph_draw(char const *s,rectangle2d *r,pixel32 c,int menu){assert(!menu);
  (void)c;strcpy(drawn,s);r->x0+=24;calls++;
 }
+#define KEYBOARD_SCORE_HINT_BACK_ICON 13
+enum {CONTROLLER_UNKNOWN,CONTROLLER_XBOX,CONTROLLER_PLAYSTATION,CONTROLLER_SWITCH};
+static short style;
+static short controller_glyph_style(void){return style;}
+static int controller_button_style_family(int s){return s<4?CONTROLLER_XBOX:s<8?CONTROLLER_PLAYSTATION:CONTROLLER_SWITCH;}
 ''' + actions + function(source,'keyboard_hud_action') + function(source,'keyboard_hud_prompt') + r'''
 int main(void){
  rectangle2d r={0};int i;
@@ -99,7 +104,14 @@ int main(void){
  calls=0;assert(keyboard_hud_prompt(0,30,&r,0xffffffff)&&calls==4);
  calls=0;for(i=32;i<256;i++)assert(!keyboard_hud_prompt(0,i,&r,0xffffffff));
  for(i=0;i<12;i++)assert(!keyboard_hud_prompt(0,i,&r,0xffffffff));
- assert(!calls);enabled=0;assert(!keyboard_hud_prompt(0,18,&r,0xffffffff));enabled=1;
+ assert(!calls);enabled=0;assert(!keyboard_hud_prompt(0,18,&r,0xffffffff));
+ /* (a controller's BACK: its name on a cap, by the controller's family) */
+ assert(keyboard_hud_prompt(0,13,&r,0xffffffff)&&!strcmp(drawn,"BACK"));
+ style=3;assert(keyboard_hud_prompt(0,13,&r,0xffffffff)&&!strcmp(drawn,"VIEW"));
+ style=4;assert(keyboard_hud_prompt(0,13,&r,0xffffffff)&&!strcmp(drawn,"SHARE"));
+ style=7;assert(keyboard_hud_prompt(0,13,&r,0xffffffff)&&!strcmp(drawn,"CREATE"));
+ style=8;assert(keyboard_hud_prompt(0,13,&r,0xffffffff)&&!strcmp(drawn,"-"));
+ style=0;assert(!keyboard_hud_prompt(0,12,&r,0xffffffff));enabled=1;
  test_player.local_player_index=1;assert(!keyboard_hud_prompt(0,18,&r,0xffffffff));
  assert(!keyboard_hud_prompt(3,18,&r,0xffffffff)&&!keyboard_hud_prompt(-1,18,&r,0xffffffff));return 0;
 }
@@ -205,6 +217,10 @@ static int enabled=1;
 static struct {short local_player_index;} test_player={0};
 #define player_get(p) (&test_player)
 static int keyboard_prompt_enabled(short p){return enabled&&p==0;}
+#define KEYBOARD_SCORE_HINT_BACK_ICON 13
+static struct {struct {struct {long count;} button_icons;} messaging;} test_hud={{{18}}};
+static void *hud_globals_present=&test_hud;
+#define hud_globals ((void)hud_globals_present,(hud_globals_present?&test_hud:0))
 ''' + function(source,'keyboard_score_hint') + r'''
 int main(void){
  wchar_t text[80]=L"Hold BACK for score";
@@ -212,7 +228,10 @@ int main(void){
  wcscpy(text,L"Hold BACK for score");keyboard_score_hint(0,text,20);assert(!wcscmp(text,L"Hold BACK for score"));
  wcscpy(text,L"Hold %s for score");keyboard_score_hint(0,text,80);assert(!wcscmp(text,L"Hold %back-button for score"));
  wcscpy(text,L"Unrecognized authored wording");keyboard_score_hint(0,text,80);assert(!wcscmp(text,L"Unrecognized authored wording"));
- enabled=0;wcscpy(text,L"Hold BACK for score");keyboard_score_hint(0,text,80);assert(!wcscmp(text,L"Hold BACK for score"));
+ /* (a controller's player: the HUD's BACK button icon, when its HUD has one) */
+ enabled=0;wcscpy(text,L"Hold BACK for score");keyboard_score_hint(0,text,80);assert(!wcscmp(text,L"Hold %back-button for score"));
+ test_hud.messaging.button_icons.count=13;wcscpy(text,L"Hold BACK for score");keyboard_score_hint(0,text,80);assert(!wcscmp(text,L"Hold BACK for score"));
+ hud_globals_present=0;wcscpy(text,L"Hold BACK for score");keyboard_score_hint(0,text,80);assert(!wcscmp(text,L"Hold BACK for score"));
  return 0;
 }
 ''')
