@@ -104,6 +104,12 @@ after a load), as their reviews asked.
   which the project's rules do not allow upstream: it is this build's alone.
   A network game records whether its map has them (network version 1046), and
   a machine that differs from the host is told why it cannot join.
+- Text chat in public internet games a player hosts (listed in the server
+  browser), as the host's TEXT CHAT says (`network.public_text_chat`, on).
+  The main build keeps such games without chat, on the host and on every
+  player who joins from the server browser; here each machine with the
+  setting on follows the host instead, so the host and the players both need
+  it. `false` restores the main build's rule.
 
 ## Not in the build
 

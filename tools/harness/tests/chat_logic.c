@@ -448,14 +448,18 @@ int main(int argc, char **argv)
 
 	/* a public game's chat: off in one a player hosts (on the host, and on a
 	client that joined it from the server browser), on in a dedicated
-	server's, whose own setting then decides; a game not listed keeps its
-	host's setting */
+	server's, whose own setting then decides, and in any while the machine
+	allows a public game's (network.public_text_chat); a game not listed
+	keeps its host's setting */
 	CASE("listing")
 	{
-		CHECK(chat_listing_allows(FALSE, FALSE), "a private or LAN game has no chat");
-		CHECK(chat_listing_allows(FALSE, TRUE), "an unlisted dedicated server has no chat");
-		CHECK(!chat_listing_allows(TRUE, FALSE), "a public game a player hosts has chat");
-		CHECK(chat_listing_allows(TRUE, TRUE), "a public dedicated server has no chat");
+		CHECK(chat_listing_allows(FALSE, FALSE, FALSE), "a private or LAN game has no chat");
+		CHECK(chat_listing_allows(FALSE, TRUE, FALSE), "an unlisted dedicated server has no chat");
+		CHECK(!chat_listing_allows(TRUE, FALSE, FALSE), "a public game a player hosts has chat");
+		CHECK(chat_listing_allows(TRUE, TRUE, FALSE), "a public dedicated server has no chat");
+		CHECK(chat_listing_allows(TRUE, FALSE, TRUE), "an allowed public game a player hosts has no chat");
+		CHECK(chat_listing_allows(FALSE, FALSE, TRUE) && chat_listing_allows(TRUE, TRUE, TRUE),
+			"allowing a public game's chat took another game's");
 	}
 
 	/* the server's word filter: its modes and levels as server.chat_filter*

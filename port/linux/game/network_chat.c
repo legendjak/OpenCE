@@ -42,8 +42,9 @@ without the chat drops the three kinds as unknown: its players neither send
 nor see lines.
 
 The host's settings (network.text_chat: on, links allowed, or off; off in a
-game a player hosts that is listed in the server browser) go to every
-client (_distributed_message_chat_config). A line they refuse is refused by
+game a player hosts that is listed in the server browser, unless
+network.public_text_chat allows it) go to every client
+(_distributed_message_chat_config). A line they refuse is refused by
 its sender's machine and again by the host, which tells the sender why; a
 client without them (from a host without the chat) has the chat off. A
 client in a public game it joined from the server browser has the chat off
@@ -51,7 +52,10 @@ whatever the host says (a changed host could turn it on): it takes no line
 from it and sends none. A dedicated server is the exception on both sides
 (chat_listing_allows): its network.text_chat holds when it is listed, and
 a client that joined it from a master server's list (an approved
-operator's, by its key, not the listing's own word) follows it.
+operator's, by its key, not the listing's own word) follows it. So is any
+public game while network.public_text_chat is on (custom-387's default):
+the host's network.text_chat holds for it, and a client that has it on too
+follows the host.
 display.text_chat hides the chat on this machine.
 
 The host may type "/mute <player> [minutes]" (20 when it gives none, a day
@@ -994,19 +998,30 @@ static boolean chat_host(
 
 /* whether a game's text chat may be on: not in a public game (listed in
 the server browser), unless its host is a dedicated server, whose own
-network.text_chat then decides. On the host, listed is its listing and
+network.text_chat then decides, or this machine allows a public game's
+(public_chat: network.public_text_chat). On the host, listed is its listing and
 dedicated whether it runs halo --server; on a client, listed is the game
 joined from the browser and dedicated whether a master server listed it as
 a dedicated server's */
 static boolean chat_listing_allows(
 	boolean listed,
-	boolean dedicated)
+	boolean dedicated,
+	boolean public_chat)
 {
-	return !listed || dedicated;
+	return !listed || dedicated || public_chat;
+}
+
+/* whether this machine has a public game's text chat
+(network.public_text_chat) */
+static boolean chat_public_allowed(
+	void)
+{
+	return config_boolean("network.public_text_chat") != 0;
 }
 
 /* (the host) its chat settings: network.text_chat's, the chat off in a game
-a player hosts that is listed in the server browser */
+a player hosts that is listed in the server browser (unless
+network.public_text_chat) */
 static byte chat_host_config_flags(
 	void)
 {
@@ -1015,7 +1030,7 @@ static byte chat_host_config_flags(
 
 	/* (in either case: HALO_NET_TEXT_CHAT=OFF is off) */
 	if (setting && !chat_names_equal(setting, "off") &&
-		chat_listing_allows(p2p_hosting_listed() != 0, halo_server_mode() != 0))
+		chat_listing_allows(p2p_hosting_listed() != 0, halo_server_mode() != 0, chat_public_allowed()))
 	{
 		flags |= (byte)FLAG(_chat_config_allowed_bit);
 		if (chat_names_equal(setting, "links"))
@@ -1041,7 +1056,8 @@ static byte chat_config_flags(
 {
 	if (chat_host())
 		return chat_host_config_flags();
-	return chat_config.known && chat_listing_allows(chat_joined_listed(), p2p_joined_listed_dedicated() != 0) ?
+	return chat_config.known && chat_listing_allows(chat_joined_listed(), p2p_joined_listed_dedicated() != 0,
+		chat_public_allowed()) ?
 		chat_config.flags : 0;
 }
 
@@ -1761,9 +1777,10 @@ void network_chat_handle_down(
 
 	/* (none in a public game a player hosts, joined from the server
 	browser, the host's notices too: its chat is off, whatever the host
-	says; a master's dedicated server's are taken) */
+	says; a master's dedicated server's are taken, and any while
+	network.public_text_chat is on) */
 	if (game_connection() != _game_connection_network_client || !from_stream ||
-		!chat_listing_allows(chat_joined_listed(), p2p_joined_listed_dedicated() != 0))
+		!chat_listing_allows(chat_joined_listed(), p2p_joined_listed_dedicated() != 0, chat_public_allowed()))
 		return;
 	csmemcpy(&line, entries, sizeof(line));
 	if (!chat_text_clean(text, line.text, CHAT_TEXT_SIZE))

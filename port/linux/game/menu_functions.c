@@ -8101,13 +8101,15 @@ static struct gametype_option const gametype_options[] =
 /* TEXT CHAT's (network.text_chat) OFF, which it shows while the game is
 listed in the server browser, and its host cannot change: a listed game has
 no text chat whatever the setting (network_chat.c), which is kept for a
-private game or a LAN one */
+private game or a LAN one; unless network.public_text_chat lets a listed
+game have it */
 #define TEXT_CHAT_SPINNER "text_chat_spinner"
 #define TEXT_CHAT_OFF 2
 
 static boolean text_chat_locked(struct gametype_option const *option)
 {
-	return !strcmp(option->spinner, TEXT_CHAT_SPINNER) && p2p_hosting_listed();
+	return !strcmp(option->spinner, TEXT_CHAT_SPINNER) && p2p_hosting_listed() &&
+		!config_boolean("network.public_text_chat");
 }
 
 /* an option of the host's own setting: the value shown for it (the one
@@ -8687,7 +8689,7 @@ static void gametype_option_help(struct widget_instance *list)
 		}
 	}
 	/* (TEXT CHAT held at OFF while the game is listed: text_chat_locked) */
-	if (named(list, TEXT_CHAT_SPINNER, 0) && p2p_hosting_listed())
+	if (named(list, TEXT_CHAT_SPINNER, 0) && p2p_hosting_listed() && !config_boolean("network.public_text_chat"))
 		named(list, TEXT_CHAT_SPINNER, 0)->parameters.list.selected_index = TEXT_CHAT_OFF;
 	/* CO-OP OPTIONS: enemies, pickups and vehicles share the amount rows.
 	Mixed modes may need both rows at once. */

@@ -633,7 +633,9 @@ machine's own scoreboard mute stays its own: it plays none of that
 machine's voice and shows none of its players' lines, and tells no one.
 The host's chat settings (`network.text_chat`: on, links allowed, or off;
 always off while a player's game is listed in the server browser,
-`p2p_hosting_listed`, but a dedicated server's own, `chat_listing_allows`)
+`p2p_hosting_listed`, but a dedicated server's own, `chat_listing_allows`,
+and any while `network.public_text_chat` is on, on the host and on the
+client)
 go to every client in
 `_distributed_message_chat_config` (one byte of flags), reliably, as they
 change and every 3 seconds. A client without them (from a host without the

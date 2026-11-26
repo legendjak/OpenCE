@@ -512,8 +512,9 @@ event. An older game is told the game is closed.
 A dedicated server's text chat is its `network.text_chat`'s, listed or
 not: `on` by default (lines with links refused), `links`, or `off`, live
 (`sv_set network.text_chat off`). A game a player hosts has no text chat
-while it is listed in the server browser; a dedicated server is the
-exception, and the players who join it from the browser's dedicated servers
+while it is listed in the server browser (unless its host and its players
+allow it: network.public_text_chat, on by default in custom-387); a
+dedicated server is the exception, and the players who join it from the browser's dedicated servers
 have the chat as it says, as long as a master server lists it (the
 masters' word that it is an approved operator's; a listing's own flag is
 not enough, so a dedicated server listed by the brokers alone, before its

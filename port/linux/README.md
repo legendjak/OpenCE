@@ -626,7 +626,8 @@ the setting for one start of the game. It has priority over the file.
 | `network.voice_mode` | `"team_global_enemy_proximity"` | `HALO_NET_VOICE_MODE` | When you host: who hears whom during a game. `"off"`; `"team_proximity"` (teammates who are near); `"team_enemy_proximity"` (all players who are near); `"team_global"` (all teammates); `"team_global_enemy_proximity"` (all teammates, and enemies who are near). Refer to "Voice chat". |
 | `network.voice_kbps` | `24` | `HALO_NET_VOICE_KBPS` | When you host: the voice quality in the lobby and in a game, in kilobits per second, `8` to `64`. |
 | `network.voice_proximity` | `15.0` | `HALO_NET_VOICE_PROXIMITY` | When you host: the distance in world units (1 unit is approximately 3 metres) at which players are near, for voice chat. `5` to `100`. |
-| `network.text_chat` | `"on"` | `HALO_NET_TEXT_CHAT` | When you host: the text chat. `"on"`, lines with links refused; `"links"`, links allowed; `"off"`, no chat (in either case). Always off in a game a player hosts that is listed in the server browser; a dedicated server's follows it, listed or not. TEXT CHAT in Server Setup > Teamplay Options (in co-op, Voice and Voting) writes its choice here. Refer to "Text chat". |
+| `network.text_chat` | `"on"` | `HALO_NET_TEXT_CHAT` | When you host: the text chat. `"on"`, lines with links refused; `"links"`, links allowed; `"off"`, no chat (in either case). In a game a player hosts that is listed in the server browser, as `network.public_text_chat` says; a dedicated server's follows it, listed or not. TEXT CHAT in Server Setup > Teamplay Options (in co-op, Voice and Voting) writes its choice here. Refer to "Text chat". |
+| `network.public_text_chat` | `true` | `HALO_NET_PUBLIC_TEXT_CHAT` | Text chat in a public internet game a player hosts (listed in the server browser), as its host's `network.text_chat` says: on this machine as the host, and as a player who joined it from the server browser (both need it). `false`: none in such a game, whatever its host says (the main OpenCE build's rule; TEXT CHAT then shows OFF while LISTING is PUBLIC). Private, LAN and dedicated server games follow `network.text_chat` either way. Refer to "Text chat". |
 | `network.votekick` | `true` | `HALO_NET_VOTEKICK` | When you host: `true`, the players can vote to kick a player. Refer to "Security". `false`: no votes. VOTE KICK in Server Setup > Teamplay Options (in co-op, Voice and Voting) writes its choice here. |
 | `network.votekick_threshold` | `"dynamic"` | `HALO_NET_VOTEKICK_THRESHOLD` | When you host: the yes votes that a vote (to kick, to end the game) needs, of the players who can vote. `"dynamic"`: scaled with the players, more than half up to 8 players, 40% (at least 5) up to 32, 30% (at least 13) above. `"static"`: `network.votekick_percent` of them, rounded up. At least 2 in both cases, and more yes than no. Only in config.toml (and a dedicated server's `sv_set`), not in the menus. |
 | `network.votekick_percent` | `50` | `HALO_NET_VOTEKICK_PERCENT` | When you host, with `network.votekick_threshold = "static"`: the percentage of the players who can vote that must vote yes (`1` to `100`). For a vote to kick, never more than the players who can vote yes (the player of the vote cannot). |
@@ -1162,13 +1163,17 @@ ON (the default: a line with a link, such as `discord.gg/...`,
 `example.com`, `www.`, an address, or `example [dot] com`, is refused),
 WITH LINKS, or OFF. A domain that is a word as well (`.me`, `.to`, `.is`)
 counts only with a path after it (`youtu.be/...`), so that `go.to` and
-`he.is` are not refused. A game a player hosts that is listed in
-the server browser (a public internet game) never has the text chat,
+`he.is` are not refused. In this build a game a player hosts that is
+listed in the server browser (a public internet game) has the text chat as
+chosen too (`network.public_text_chat`, `true` by default; the host and
+each player who joins it from the server browser need it). With
+`network.public_text_chat = false` such a game never has the text chat,
 whatever it says (TEXT CHAT shows OFF there, and cannot be changed, while
-LISTING is PUBLIC); a private game, joined by its invite, and a LAN game have
-it as chosen. A player who joins such a game from the server browser has no
-text chat in it even if its host turns it on: their game takes no line from
-that host and sends none. A dedicated server is the exception: its own
+LISTING is PUBLIC), as in the main OpenCE build; a private game, joined by
+its invite, and a LAN game have it as chosen. A player with it `false` who
+joins such a game from the server browser has no text chat in it even if
+its host turns it on: their game takes no line from that host and sends
+none. A dedicated server is the exception: its own
 `network.text_chat` decides (on by default, and its operator can turn it
 off, or allow links), listed or not, and a player who joins it from the
 server browser's dedicated servers (a master server's list, which names

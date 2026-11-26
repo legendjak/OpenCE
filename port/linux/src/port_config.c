@@ -736,9 +736,18 @@ static const struct config_setting config_settings[] =
 		"to be heard by proximity voice chat (5 to 100)." },
 	{ "network.text_chat", _config_string, "\"on\"", "HALO_NET_TEXT_CHAT", _environment_value, _platform_all,
 		"Hosting: the text chat: \"on\" (links in lines are refused), \"links\"\n"
-		"(links allowed) or \"off\", in either case. Always off in a game a\n"
-		"player hosts that is listed in the server browser (a public internet\n"
-		"game); a dedicated server's follows this setting, listed or not." },
+		"(links allowed) or \"off\", in either case. In a game a player hosts\n"
+		"that is listed in the server browser (a public internet game), as\n"
+		"network.public_text_chat says; a dedicated server's follows this\n"
+		"setting, listed or not." },
+	{ "network.public_text_chat", _config_boolean, "true", "HALO_NET_PUBLIC_TEXT_CHAT", _environment_value,
+		_platform_all,
+		"Text chat in a public internet game a player hosts (listed in the\n"
+		"server browser), as the host's network.text_chat says: on this machine\n"
+		"as its host, and as a player who joined one from the server browser\n"
+		"(both must have it). false: no text chat in one, whatever its host\n"
+		"says, as the main OpenCE build has it. A private game, a LAN game and\n"
+		"a dedicated server's have their host's network.text_chat either way." },
 	{ "network.votekick", _config_boolean, "true", "HALO_NET_VOTEKICK", _environment_value, _platform_all,
 		"Hosting: let the players vote to kick a player (the scoreboard's\n"
 		"right-click, or the console's votekick; F1 or the D-pad's left votes\n"
