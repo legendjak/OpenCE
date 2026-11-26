@@ -1,6 +1,10 @@
 /* MCC weapon particle systems can author separate first- and third-person
  * streams. Ruby's flamethrower uses "spawn fire" only on its first-person
- * model; querying the world model cannot produce that stream. */
+ * model; querying the world model cannot produce that stream. Halo PC's
+ * flamethrower does the same (its fp_defoliant streams for the holder, its
+ * defoliant ones for everyone else), which Halo PC's game draws so: on a
+ * Halo PC or Custom Edition map, or one given Halo PC's items, too
+ * (custom-387). */
 #include "cseries.h"
 #include "camera/director.h"
 #include "effects/particle_system_definitions.h"
@@ -9,6 +13,15 @@
 #include "objects/object_definitions.h"
 #include "mcc_cache.h"
 #include "mcc_particles.h"
+#include "custom_edition_cache.h"
+#include "gearbox_items.h"
+
+/* whether the map's particle systems' first- and third-person streams are
+drawn apart: MCC's, Halo PC's and Custom Edition's (above) */
+static boolean particle_view_exclusions(void)
+{
+    return mcc_cache_tags_loaded() || custom_edition_cache_tags_loaded() || gearbox_items_loaded();
+}
 
 static short mcc_particle_system_local_player(long object_index)
 {
@@ -25,7 +38,7 @@ short mcc_particle_system_markers(long object_index, short attachment_index,
     struct weapon_datum *weapon;
     struct tag_block *attachments;
     struct object_attachment_definition *attachment;
-    if (!mcc_cache_tags_loaded() ||
+    if (!particle_view_exclusions() ||
         !TEST_FLAG(flags, _particle_system_type_nodraw_third_person_bit)) return world_count;
     /* Both view exclusions mean no emission. Never substitute the world
      * origin for an absent first-person marker, a remote player or a holstered
@@ -43,7 +56,7 @@ boolean mcc_particle_system_visible(long object_index, unsigned long flags, shor
 {
     short local;
     boolean first_person;
-    if (!mcc_cache_tags_loaded() ||
+    if (!particle_view_exclusions() ||
         !(flags & (FLAG(_particle_system_type_nodraw_first_person_bit) |
                    FLAG(_particle_system_type_nodraw_third_person_bit)))) return TRUE;
     local = mcc_particle_system_local_player(object_index);

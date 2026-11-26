@@ -1023,6 +1023,7 @@ static void test_input_gamepad(XINPUT_GAMEPAD *pad)
 	static int checked;
 	static int seed = -1;
 	static int looking;
+	static int firing;
 	double t;
 	int index;
 
@@ -1065,6 +1066,11 @@ static void test_input_gamepad(XINPUT_GAMEPAD *pad)
 			seed = atoi(setting + 5);
 			looking = 1;
 		}
+		else if (!strcmp(setting, "fire"))
+		{
+			seed = 0;
+			firing = 1;
+		}
 	}
 	if (test_input_menu[0])
 	{
@@ -1081,6 +1087,12 @@ static void test_input_gamepad(XINPUT_GAMEPAD *pad)
 		return;
 	}
 	t = test_input_seconds() + seed * 1.7;
+	/* ("fire": standing still, the trigger held) */
+	if (firing)
+	{
+		pad->bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER] = 255;
+		return;
+	}
 	if (looking)
 	{
 		pad->sThumbRX = (SHORT)(sin(t * 0.5) * 14000.0);
