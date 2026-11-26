@@ -12,6 +12,10 @@ gun, taken with their placements from the Halo PC version of the same map
 
 /* ---------- constants */
 
+/* what a Halo PC bitmap the items bring beside the Xbox map's of its name is
+called: that name and this */
+#define GEARBOX_ITEMS_OWN_NAME_SUFFIX " (halo pc)"
+
 enum
 {
 	_gearbox_item_flamethrower = 0,

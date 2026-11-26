@@ -81,7 +81,7 @@ records another */
 #define GEARBOX_HUD_GLOBALS_TAG 'hudg'
 #define GEARBOX_BITMAP_TAG 'bitm'
 /* what a Halo PC bitmap added beside the Xbox map's of its name is called */
-#define GEARBOX_OWN_NAME_SUFFIX " (halo pc)"
+#define GEARBOX_OWN_NAME_SUFFIX GEARBOX_ITEMS_OWN_NAME_SUFFIX
 
 /* a vehicle placement's bytes (tag_schema_scenario.c's unit_placement) */
 #define VEHICLE_PLACEMENT_BYTES 0x78
@@ -106,6 +106,8 @@ enum
 {
 	_gearbox_root_rocket_warthog = 0,
 	_gearbox_root_banshee,
+	/* the Shade (Halo PC's gun turret: Sidewinder's, of the game's maps) */
+	_gearbox_root_gun_turret,
 	_gearbox_root_flamethrower,
 	_gearbox_root_fuel_rod,
 	NUMBER_OF_GEARBOX_ROOTS,
@@ -229,6 +231,7 @@ static struct gearbox_root const gearbox_roots[NUMBER_OF_GEARBOX_ROOTS] =
 {
 	{ GEARBOX_VEHICLE_TAG, "vehicles\\rwarthog\\rwarthog" },
 	{ GEARBOX_VEHICLE_TAG, "vehicles\\banshee\\banshee_mp" },
+	{ GEARBOX_VEHICLE_TAG, "vehicles\\c gun turret\\c gun turret_mp" },
 	{ GEARBOX_WEAPON_TAG, "weapons\\flamethrower\\flamethrower" },
 	{ GEARBOX_WEAPON_TAG, "weapons\\plasma_cannon\\plasma_cannon" },
 };
@@ -238,6 +241,7 @@ static char const *const gearbox_folders[] =
 {
 	"vehicles\\rwarthog\\",
 	"vehicles\\banshee\\",
+	"vehicles\\c gun turret\\",
 	"weapons\\flamethrower\\",
 	"weapons\\plasma_cannon\\",
 };

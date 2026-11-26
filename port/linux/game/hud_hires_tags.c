@@ -83,6 +83,7 @@ long hud_hires_asset_at(unsigned long address, long width, long height);
 struct bitmap_data const *hud_hires_sprite_bitmap(struct bitmap_data const *bitmap, short sequence_index);
 
 #include "custom_edition_hud_buttons.h"
+#include "gearbox_items.h"
 
 /* ---------- constants */
 
@@ -175,12 +176,31 @@ static void hud_hires_sprite_bitmaps_forget(
 
 /* ---------- public code */
 
+/* The Halo PC bitmap the items (gearbox_items.c) brought beside the Xbox
+map's bitmap `tag`, under a name of its own, or NONE: a Halo PC HUD sheet,
+laid out as Custom Edition's (the same game's), which the textures and
+upscaling of a Custom Edition map's stock sheets stand for, when its pixels
+are theirs (checked as they are uploaded: hud_hires.c) */
+static long hud_hires_gearbox_group(
+	char const *tag)
+{
+	char name[256];
+
+	if (!gearbox_items_loaded() || strlen(tag) + strlen(GEARBOX_ITEMS_OWN_NAME_SUFFIX) >= sizeof(name))
+		return NONE;
+	strcpy(name, tag);
+	strcat(name, GEARBOX_ITEMS_OWN_NAME_SUFFIX);
+
+	return tag_loaded(BITMAP_GROUP_TAG, name);
+}
+
 void hud_hires_tags_loaded(
 	long scenario_index)
 {
 	long asset_count = hud_hires_asset_count();
 	long asset;
 	long missing = 0;
+	long gearbox_count = 0;
 
 	hires_bitmap_count = 0;
 	hud_hires_sprite_bitmaps_forget();
@@ -195,6 +215,23 @@ void hud_hires_tags_loaded(
 			struct bitmap_data *bitmap = group == NONE ? NULL :
 				bitmap_group_try_and_get_bitmap(group, (short)hud_hires_ce_stock_bitmap(index));
 			if (bitmap && custom_edition_cache_stock_tag(group))
+			{
+				ce_stock_bitmaps[ce_stock_bitmap_count].bitmap = bitmap;
+				ce_stock_bitmaps[ce_stock_bitmap_count++].signature = index;
+			}
+		}
+	}
+	/* (an Xbox map's Halo PC sheets, the items' (as a Custom Edition map's
+	stock ones: their pixels checked as they are uploaded) */
+	else if (gearbox_items_loaded())
+	{
+		long index;
+		for (index = 0; index < hud_hires_ce_stock_count_get() && ce_stock_bitmap_count < NUMBEROF(ce_stock_bitmaps); index++)
+		{
+			long group = hud_hires_gearbox_group(hud_hires_ce_stock_tag(index));
+			struct bitmap_data *bitmap = group == NONE ? NULL :
+				bitmap_group_try_and_get_bitmap(group, (short)hud_hires_ce_stock_bitmap(index));
+			if (bitmap)
 			{
 				ce_stock_bitmaps[ce_stock_bitmap_count].bitmap = bitmap;
 				ce_stock_bitmaps[ce_stock_bitmap_count++].signature = index;
@@ -276,8 +313,38 @@ void hud_hires_tags_loaded(
 			hires_bitmap_count++;
 		}
 	}
+	/* (and the textures of a Custom Edition map's stock sheets for the
+	items' Halo PC sheets: one each, whose pixels decide, hud_hires.c) */
+	for (asset = 0; asset < asset_count && hires_bitmap_count < MAXIMUM_HIRES_BITMAPS; asset++)
+	{
+		long group_index;
+		struct bitmap_data *bitmap;
+		long index;
+
+		if (!hud_hires_asset_custom_edition(asset) || hud_hires_asset_sprites(asset))
+			continue;
+		group_index = hud_hires_gearbox_group(hud_hires_asset_tag(asset));
+		bitmap = group_index == NONE ? NULL :
+			bitmap_group_try_and_get_bitmap(group_index, (short)hud_hires_asset_bitmap(asset));
+		if (!bitmap || !hud_hires_asset_fits(asset, bitmap->width, bitmap->height))
+			continue;
+		for (index = 0; index < hires_bitmap_count && hires_bitmaps[index].bitmap != bitmap; index++)
+			;
+		if (index < hires_bitmap_count)
+			continue;
+		hires_bitmaps[hires_bitmap_count].bitmap = bitmap;
+		hires_bitmaps[hires_bitmap_count].asset = asset;
+		hires_bitmaps[hires_bitmap_count].stock_custom_edition = TRUE;
+		hires_bitmap_count++;
+		gearbox_count++;
+	}
 	platform_log("high-res hud: %ld of %ld bitmaps in this map, %ld for some of their sprites (%ld not in it)",
 		hires_bitmap_count + hires_sprite_bitmap_count, asset_count, hires_sprite_bitmap_count, missing);
+	if (gearbox_items_loaded())
+	{
+		platform_log("high-res hud: %ld of them Halo PC's, the items'; %ld Halo PC sheets upscaled",
+			gearbox_count, ce_stock_bitmap_count);
+	}
 	/* (their PNGs decoded now, ahead of the HUD's first frame: not the main
 	menu's, which draws no HUD) */
 	if (scenario_definition_get(scenario_index)->type != _scenario_type_main_menu)
