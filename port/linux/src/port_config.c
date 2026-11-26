@@ -322,6 +322,14 @@ static const struct config_setting config_settings[] =
 		"Draw the teleporters' field on Halo PC's own maps with the Xbox's shader\n"
 		"(a swirl of energy, where Halo PC's is a flat green frame), read from\n"
 		"one of the game's own multiplayer maps; false: Halo PC's." },
+	{ "display.teleporter_glow", _config_boolean, "true", "HALO_TELEPORTER_GLOW", _environment_value, _platform_all,
+		"Light the floor at the teleporters of Halo PC's own maps green, as the\n"
+		"Xbox's maps' lightmaps do around theirs (a light of the game's at each\n"
+		"teleporter's entrance); false: unlit, as Halo PC has them." },
+	{ "display.campaign_shade", _config_boolean, "true", "HALO_CAMPAIGN_SHADE", _environment_value, _platform_all,
+		"Draw Halo PC's multiplayer Shade's bolts as the Xbox's campaign Shade's\n"
+		"(its contrail, firing flashes, smoke and light); false: Gearbox's. Its\n"
+		"bolts fly and hurt as Halo PC's either way." },
 	{ "display.structure_culling", _config_integer, "31", "HALO_STRUCTURE_CULLING", _environment_value,
 		_platform_all,
 		"Which tests skip the level's triangles the camera cannot see, as bits\n"

@@ -129,6 +129,23 @@ after a load), as their reviews asked.
   PC's flat green one (`display.xbox_teleporters`, on): the Xbox's shader and
   bitmaps of that name are read from one of the game's own multiplayer maps
   and stand in for Halo PC's (`port/linux/game/xbox_teleporters.c`).
+- The floor at the teleporters of Halo PC's own maps glows green, as the
+  Xbox's maps' lightmaps make it glow around theirs (`display.teleporter_glow`,
+  on): a green dynamic light just over the floor at each teleporter's
+  entrance, moved out from the frame and the wall behind it toward the open
+  side, with no highlight (`port/linux/game/teleporter_glow.c`). Gearbox's
+  lightmaps of Danger Canyon, Death Island, Ice Fields, Infinity and
+  Gephyrophobia had little or none of it; Timberland has no teleporters.
+- Halo PC's multiplayer Shade's bolts look like the Xbox's campaign Shade's
+  (`display.campaign_shade`, on): its contrail gets the campaign's 30 points a
+  second (Halo PC's has 10) and three narrow white states, its firing effect
+  the campaign's brighter flashes, counts and last flash, its smoke and its
+  light the campaign's sizes. The values are the Xbox's b30's, set at load on
+  the four tags only while they hold Gearbox's (checked), and given back as
+  the map unloads (`port/linux/game/campaign_shade.c`). The bolts still fly
+  and hurt as Halo PC's (60 world units a second, the campaign's 25), so the
+  trail is longer. Like the items, this picks tags by name, which the
+  project's rules do not allow upstream.
 - Halo PC's six maps of its own (Ice Fields, Death Island, Danger Canyon,
   Infinity, Timberland, Gephyrophobia), found in `paths.custom_edition`'s
   maps, are listed under MULTIPLAYER after the Xbox's maps, with Halo PC's

@@ -187,6 +187,8 @@ symbols in this file:
 #include "light_scale.h" /* port: port/linux/game/light_scale.c */
 #include "longsword_exhaust.h" /* port: port/linux/game/longsword_exhaust.c */
 void shield_glow_update(void); /* port: port/linux/game/shield_glow.c */
+void teleporter_glow_update(void); /* port: port/linux/game/teleporter_glow.c */
+void teleporter_glow_reset(void); /* port: port/linux/game/teleporter_glow.c */
 
 /* port: port/linux/src (halo.log) */
 void platform_log(const char *format, ...);
@@ -802,11 +804,38 @@ boolean light_port_glow_set(
 	return TRUE;
 }
 
+/* port: a glow at a point of the world, on no object (port/linux/game/
+teleporter_glow.c): an unattached light at `position`, of that color and
+radius, kept alive and changed by light_port_glow_set (its object NONE) and
+found in the clusters its own radius reaches (light_compute_bounding_sphere),
+not its definition's: it does not move. NONE if the map has no light
+definition to draw it with, or no light is free */
+long light_port_glow_new_at(
+	real_point3d const *position,
+	real_rgb_color const *color,
+	real radius)
+{
+	long definition_index = light_port_glow_definition_get();
+	long light_index;
+
+	if (definition_index == NONE)
+		return NONE;
+	light_index = light_new_unattached(definition_index, NONE, 0, position, global_up3d, 0.0f);
+	if (light_index != NONE && light_port_glow_set(light_index, NONE, color, radius))
+	{
+		light_disconnect_from_map(light_index);
+		light_reconnect_to_map(light_index);
+	}
+
+	return light_index;
+}
+
 void lights_initialize_for_new_map(
 	void)
 {
 	overshield_effect_reset(); /* port: queued identities and model heights belong to this map. */
 	light_port_glow_definition = NONE - 1; /* port: (looked for again) */
+	teleporter_glow_reset(); /* port: (the new map's teleporters looked for) */
 	data_make_valid(light_data);
 	lights_game_globals->render_lights = TRUE;
 	cluster_partition_make_valid(&light_cluster_partition);
@@ -1002,6 +1031,7 @@ void lights_preprocess_scene(
 	between ticks: lights_port_recover) */
 	lights_port_recover();
 	shield_glow_update(); /* port: port/linux/game/shield_glow.c */
+	teleporter_glow_update(); /* port: port/linux/game/teleporter_glow.c */
 	for (light_index = data_next_index(light_data, NONE);
 		light_index != NONE;
 		light_index = data_next_index(light_data, light_index))
@@ -1826,6 +1856,10 @@ static void light_compute_bounding_sphere(
 		? definition->radius_modifier_upper_bound * definition->radius
 		: light->radius;
 
+	/* port: a glow at a point of the world reaches as far as it is set to
+	(light_port_glow_new_at) */
+	if (TEST_FLAG(light->flags, _point_light_port_glow_bit) && light->object_index == NONE)
+		light_radius = light->intensity_scale;
 	if (!TEST_FLAG(definition->flags, _light_definition_no_specular_bit)
 		&& (specular || maximum))
 	{
@@ -1983,7 +2017,10 @@ void lights_render_specular(
 			if (TEST_FLAG(light->flags, _point_light_dynamic_bit)
 				&& light->rasterizer_light_index != NONE
 				&& !TEST_FLAG(light_definition_get(light->definition_index)->flags,
-					_light_definition_no_specular_bit))
+					_light_definition_no_specular_bit)
+				/* port: a glow at a point of the world lights as a lightmap
+				does, with no highlight (light_port_glow_new_at) */
+				&& !(TEST_FLAG(light->flags, _point_light_port_glow_bit) && light->object_index == NONE))
 			{
 				boolean skip_clusters = TEST_FLAG(light->flags,
 						_point_light_attached_to_first_person_weapon_bit)

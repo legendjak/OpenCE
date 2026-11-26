@@ -609,6 +609,13 @@ char const *cache_files_map_directory(
 void scenario_tags_unload(
 	void)
 {
+	/* port: the multiplayer Shade's tags given back their own look, while
+	they are all loaded (port/linux/game/campaign_shade.c) */
+	{
+		extern void campaign_shade_tags_unloaded(void);
+
+		campaign_shade_tags_unloaded();
+	}
 	/* port: the high-res HUD forgets this map's bitmaps (port/linux/game/hud_hires_tags.c) */
 	{
 		extern void hud_hires_tags_unloaded(void);
@@ -1374,6 +1381,13 @@ long scenario_tags_load(
 
 				xbox_teleporters_tags_loaded();
 			}
+			/* port: the campaign Shade's look on Halo PC's multiplayer Shade
+			(port/linux/game/campaign_shade.c) */
+			{
+				extern void campaign_shade_tags_loaded(void);
+
+				campaign_shade_tags_loaded();
+			}
 			/* port: register CE HUD bitmaps before mods replace their tags
 			(port/linux/game/hud_hires_tags.c), as for Xbox maps below. */
 			{
@@ -1546,6 +1560,13 @@ long scenario_tags_load(
 
 				gearbox_items_tags_loaded(cache_file_globals.header.name,
 					cache_file_globals.tag_header->scenario_tag_index);
+			}
+			/* port: the campaign Shade's look on Halo PC's multiplayer Shade,
+			which Halo PC's items bring (port/linux/game/campaign_shade.c) */
+			{
+				extern void campaign_shade_tags_loaded(void);
+
+				campaign_shade_tags_loaded();
 			}
 			/* port: the menus' tags, added to the map's (port/linux/game/menu_tags.c) */
 			{

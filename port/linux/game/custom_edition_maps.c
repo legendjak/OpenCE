@@ -1072,6 +1072,30 @@ boolean custom_edition_maps_stock(
 	return map && stock_map_index(map->name) != NONE;
 }
 
+boolean custom_edition_maps_stock_file(
+	char const *path)
+{
+	char name[MAXIMUM_MAP_NAME_LENGTH + 1];
+	char const *file = path;
+	char const *character;
+	size_t length;
+
+	if (!path)
+		return FALSE;
+	for (character = path; *character; character++)
+	{
+		if (*character == '\\' || *character == '/')
+			file = character + 1;
+	}
+	length = strcspn(file, ".");
+	if (!length || length > MAXIMUM_MAP_NAME_LENGTH)
+		return FALSE;
+	memcpy(name, file, length);
+	name[length] = 0;
+
+	return stock_map_exact_index(name) != NONE;
+}
+
 wchar_t *custom_edition_maps_name(
 	short display_index)
 {

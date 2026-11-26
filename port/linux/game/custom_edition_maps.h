@@ -88,6 +88,10 @@ char const *custom_edition_maps_level_name(
 Fields, Death Island and so on), which are listed as VANILLA */
 boolean custom_edition_maps_stock(
 	short display_index);
+/* whether a map file (its path) is one of Halo PC's own multiplayer maps,
+by its name (not a version of one, named for its hash) */
+boolean custom_edition_maps_stock_file(
+	char const *path);
 
 /* name and description for a display index, or NULL (text_group.c) */
 wchar_t *custom_edition_maps_name(
