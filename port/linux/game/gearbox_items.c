@@ -54,6 +54,9 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 #include "mcc_cache.h"
 #include "tag_schema.h"
 #include "gearbox_items.h"
+#include "objects/objects.h"
+#include "scenario/scenario.h"
+#include "physics/collisions.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -278,6 +281,23 @@ static struct
 	/* Halo PC's HUD messaging icons in the grown table (NONE: none) */
 	long messaging_icons;
 } gearbox_items_globals;
+
+/* the items' Banshees, each where it last was inside the map
+(gearbox_items_update) */
+enum
+{
+	GEARBOX_MAXIMUM_FLYERS = 32
+};
+
+static struct
+{
+	long object_index;
+	real_point3d inside;
+} gearbox_flyers[GEARBOX_MAXIMUM_FLYERS];
+static long gearbox_next_flyer;
+/* (how far below a Banshee its ground is looked for: further than any map is
+tall) */
+static real_vector3d const gearbox_down = { 0.0f, 0.0f, -2000.0f };
 
 /* ---------- prototypes */
 
@@ -1788,6 +1808,8 @@ void gearbox_items_tags_loaded(
 		return;
 	}
 	gearbox_items_globals.loaded = TRUE;
+	memset(gearbox_flyers, 0xFF, sizeof(gearbox_flyers));
+	gearbox_next_flyer = 0;
 
 	return;
 }
@@ -1855,6 +1877,62 @@ long gearbox_items_messaging_icons(
 	}
 
 	return gearbox_items_globals.messaging_icons;
+}
+
+/* ---- the items' Banshee kept in the map: the Xbox's maps were not made for
+flying, and a Banshee could fly out past their edges, where Halo PC's
+maps of the same name hold it in. Each tick a Banshee whose centre is
+outside the map's structure (in no cluster), or over no ground of it (its
+sky goes on past the cliffs, over nothing: a ray straight down meets no
+front of its surfaces), is put back where it last was inside it, and
+stopped: the map's edge is a wall to it. Every machine does
+it, the host's deciding (its updates move the clients' copies). */
+
+void gearbox_items_update(
+	void)
+{
+	struct object_iterator iterator;
+	long banshee = gearbox_items_globals.roots[_gearbox_root_banshee];
+
+	if (!gearbox_items_globals.loaded || banshee == NONE)
+		return;
+	object_iterator_new(&iterator, _object_mask_vehicle, 0);
+	while (object_iterator_next(&iterator))
+	{
+		struct object_datum *object = object_get(iterator.index);
+		struct location location;
+		struct collision_result collision;
+		long flyer;
+
+		if (object->definition_index != banshee)
+			continue;
+		for (flyer = 0; flyer < GEARBOX_MAXIMUM_FLYERS && gearbox_flyers[flyer].object_index != iterator.index; flyer++)
+			;
+		scenario_location_from_point(&location, &object->object.position);
+		if (location.cluster_index != NONE &&
+			collision_test_vector(FLAG(_collision_test_structure_bit) | FLAG(_collision_test_front_facing_surfaces_bit),
+				&object->object.position, &gearbox_down, iterator.index, &collision) &&
+			collision.type == _collision_result_structure)
+		{
+			/* (a Banshee not seen before takes the next slot, the oldest's) */
+			if (flyer == GEARBOX_MAXIMUM_FLYERS)
+			{
+				flyer = gearbox_next_flyer;
+				gearbox_next_flyer = (gearbox_next_flyer + 1) % GEARBOX_MAXIMUM_FLYERS;
+				gearbox_flyers[flyer].object_index = iterator.index;
+			}
+			gearbox_flyers[flyer].inside = object->object.position;
+			continue;
+		}
+		if (flyer == GEARBOX_MAXIMUM_FLYERS)
+			continue;
+		object_set_position(iterator.index, &gearbox_flyers[flyer].inside, NULL, NULL);
+		object->object.translational_velocity.i = 0.0f;
+		object->object.translational_velocity.j = 0.0f;
+		object->object.translational_velocity.k = 0.0f;
+	}
+
+	return;
 }
 
 boolean gearbox_items_read(

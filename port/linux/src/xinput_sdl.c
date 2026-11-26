@@ -1071,6 +1071,11 @@ static void test_input_gamepad(XINPUT_GAMEPAD *pad)
 			seed = 0;
 			firing = 1;
 		}
+		else if (!strcmp(setting, "fly"))
+		{
+			seed = 0;
+			firing = 2;
+		}
 	}
 	if (test_input_menu[0])
 	{
@@ -1088,9 +1093,20 @@ static void test_input_gamepad(XINPUT_GAMEPAD *pad)
 	}
 	t = test_input_seconds() + seed * 1.7;
 	/* ("fire": standing still, the trigger held) */
-	if (firing)
+	if (firing == 1)
 	{
 		pad->bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER] = 255;
+		/* (turning slowly after a few seconds, the shots seen going away) */
+		if (t > 6.0)
+			pad->sThumbRX = 6000;
+		return;
+	}
+	/* ("fly": full ahead, looking up a second of each eight) */
+	if (firing == 2)
+	{
+		pad->sThumbLY = 32000;
+		if (fmod(t, 8.0) < 1.0)
+			pad->sThumbRY = 20000;
 		return;
 	}
 	if (looking)

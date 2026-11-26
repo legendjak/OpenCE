@@ -191,6 +191,7 @@ struct game_options;
 #include "profile_console.h" /* port: port/linux/game/profile_console.c */
 #endif
 #include "profile_sections.h" /* port: port/linux/include/profile_sections.h */
+#include "gearbox_items.h" /* port: port/linux/game/gearbox_items.c */
 
 /* network_game_globals.c's */
 boolean network_game_distributed_client(void);
@@ -393,6 +394,9 @@ void game_tick(
 		profile_scope(game_tick_hs_section, hs_update();)
 	profile_scope(game_tick_recorded_animations_section, recorded_animations_update();)
 	profile_scope(game_tick_objects_section, objects_update();)
+	/* port: Halo PC's Banshee on one of the game's own maps kept inside it
+	(custom-387) */
+	gearbox_items_update();
 	profile_scope(game_tick_players_after_section, players_update_after_game();)
 	profile_scope(game_tick_hud_section, hud_update();)
 	profile_scope(game_tick_player_effect_section, player_effect_update();)

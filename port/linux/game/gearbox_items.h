@@ -58,6 +58,11 @@ long gearbox_items_messaging_icons(
 	long bitmap_group_index,
 	short sequence_index);
 
+/* Each tick, after the objects' (game_tick): the items' Banshee kept inside
+the map (gearbox_items.c). */
+void gearbox_items_update(
+	void);
+
 /* A read (cache_file_read's) of a tag the items brought: served from the
 Halo PC map's files at once, and TRUE; FALSE for any other tag's. */
 boolean gearbox_items_read(
