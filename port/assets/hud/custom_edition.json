@@ -65,7 +65,8 @@
   {"tag": "ui\\hud\\bitmaps\\combined\\hud_reticles", "bitmap": 11, "width": 64, "height": 64, "size": 16384, "crc": 1500905970},
   {"tag": "ui\\hud\\bitmaps\\sniper\\hud_reticles_scope", "bitmap": 0, "width": 64, "height": 64, "size": 16384, "crc": 3359213591, "replacement": "ce_sniper_scope"},
   {"tag": "ui\\hud\\bitmaps\\combined\\hud_reticles", "bitmap": 12, "width": 64, "height": 64, "size": 16384, "crc": 2831607766},
-  {"tag": "ui\\hud\\bitmaps\\combined\\hud_reticles", "bitmap": 13, "width": 64, "height": 64, "size": 16384, "crc": 3213345147}
+  {"tag": "ui\\hud\\bitmaps\\combined\\hud_reticles", "bitmap": 13, "width": 64, "height": 64, "size": 16384, "crc": 3213345147},
+  {"tag": "ui\\hud\\bitmaps\\combined\\hud_reticle_warnings", "bitmap": 0, "width": 128, "height": 128, "size": 65536, "crc": 598528602}
  ],
  "resource_sha256": "317658e0ebd4aa189bac68e994fe0b515928f44d17b62ba676d8850aa329dd3d"
 }
