@@ -366,6 +366,34 @@
      "sequence": 1
     }
    ]
+  },
+  {
+   "name": "ce_hud_reticles__12",
+   "tag": "ui\\hud\\bitmaps\\combined\\hud_reticles",
+   "bitmap": 12,
+   "scale": 8,
+   "format": "a8r8g8b8",
+   "ce_only": true,
+   "generated_by": "tools/pc_reticles.py",
+   "cells": [],
+   "width": 64,
+   "height": 64,
+   "size": 16384,
+   "crc": 2831607766
+  },
+  {
+   "name": "ce_hud_reticles__13",
+   "tag": "ui\\hud\\bitmaps\\combined\\hud_reticles",
+   "bitmap": 13,
+   "scale": 8,
+   "format": "a8r8g8b8",
+   "ce_only": true,
+   "generated_by": "tools/pc_reticles.py",
+   "cells": [],
+   "width": 64,
+   "height": 64,
+   "size": 16384,
+   "crc": 3213345147
   }
  ]
 }

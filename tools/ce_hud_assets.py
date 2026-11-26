@@ -43,6 +43,9 @@ def build_asset(entry):
 
 def build():
     for entry in json.loads(RECIPE.read_text())['assets']:
+        # (drawn by a tool of its own, which it names: tools/pc_reticles.py)
+        if entry.get('generated_by'):
+            continue
         build_asset(entry).save(ASSETS / (entry['name'] + '.png'), optimize=True)
 
 

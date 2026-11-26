@@ -81,6 +81,8 @@ struct custom_edition_cache_globals
 	/* the Halo PC behaviours the loaded map relies on (enum
 	custom_edition_behaviour, flags) */
 	uint32_t behaviours;
+	/* the loaded map's cache version (Halo PC's 7, Custom Edition's 609) */
+	int32_t version;
 	/* the tag cache and the bytes of it the loaded tags use */
 	uint8_t *tag_cache;
 	uint32_t loaded_bytes;
@@ -1223,6 +1225,7 @@ static uint8_t *custom_edition_cache_path_load(
 	globals->loaded_bytes = report.tag_data_bytes + report.resource_tag_bytes;
 	globals->tag_cache_bytes = report.tag_cache_bytes;
 	globals->file_length = report.identity.file_length;
+	globals->version = report.identity.version;
 
 	return tag_cache;
 }
@@ -1365,6 +1368,12 @@ boolean custom_edition_cache_stock_tag(
 {
 	struct custom_edition_cache_globals *globals = &custom_edition_cache_globals;
 
+	/* (Halo PC's own maps, which hold their tags rather than naming Custom
+	Edition's resource map's: every tag one of Halo PC's, as Custom Edition's
+	stock ones are (custom-387; what a stock tag stands for checks its
+	pixels: hud_hires.c) */
+	if (globals->tags_loaded && tag_index != NONE && globals->version == CACHE_FILE_VERSION_HALO_PC)
+		return TRUE;
 	return globals->tags_loaded && tag_index != NONE &&
 		custom_edition_cache_tag_in_resource_map(globals->tag_cache, globals->loaded_bytes,
 			(int32_t)DATUM_INDEX_TO_ABSOLUTE_INDEX(tag_index));
