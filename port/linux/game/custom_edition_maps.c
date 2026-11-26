@@ -7,6 +7,9 @@ Whenever a map list opens, the custom_maps folder and then the Halo Custom
 Edition install's maps folder are scanned for CE caches (.map; OpenSauce
 caches are refused by the loader, so not listed). Multiplayer maps join the
 level list after the Xbox levels, and the map lists' CUSTOM MULTIPLAYER;
+Halo PC's own six (stock_maps) come first, and the map lists' MULTIPLAYER
+shows them after the Xbox's maps (custom-387), with Halo PC's pictures
+(its ui.map's, from the install) and descriptions;
 campaign maps (solo scenarios) are the map lists' CUSTOM SINGLEPLAYER,
 played alone or as network co-op. The stock campaign levels get display
 indices here too, so the menus can show them the same way.
@@ -53,6 +56,12 @@ Each map can have, beside it in its folder:
 #include <stdlib.h>
 #include <string.h>
 #include <xtl.h>
+
+/* Unmodified iOrange/bcdec, MIT option (see third_party/bcdec/LICENSE), as
+mcc_bitmaps.c has it: Halo PC's map pictures are DXT1 */
+#define BCDEC_STATIC
+#define BCDEC_IMPLEMENTATION
+#include "../../third_party/bcdec/bcdec.h"
 
 /* ---------- constants */
 
@@ -136,6 +145,9 @@ struct custom_edition_maps_globals
 {
 	boolean looked_for;
 	short map_count;
+	/* the first of maps are Halo PC's own (stock_maps), this many, the
+	map lists' MULTIPLAYER's after the Xbox's maps */
+	short stock_count;
 	struct custom_edition_map maps[CUSTOM_EDITION_MAPS_MAXIMUM];
 	/* campaign maps, kept out of the level list */
 	short campaign_count;
@@ -150,16 +162,36 @@ struct custom_edition_maps_globals
 static struct custom_edition_maps_globals custom_edition_maps_globals;
 
 /* Halo PC's own multiplayer maps (not on the Xbox), with their menu names
-from ui.map's mp_map_list. They are listed as VANILLA. */
+from ui.map's mp_map_list and their descriptions from its map_data, in its
+order: the first after the Xbox's 13 maps (the pictures of its
+mp_map_grafix are in that order too, STOCK_MAP_FIRST_PICTURE on) */
+#define STOCK_MAP_FIRST_PICTURE 13
 static struct
 {
 	char const *file;
 	wchar_t const *name;
+	wchar_t const *description;
 } const stock_maps[] =
 {
-	{ "icefields", L"Ice Fields" }, { "deathisland", L"Death Island" }, { "dangercanyon", L"Danger Canyon" },
-	{ "infinity", L"Infinity" }, { "timberland", L"Timberland" }, { "gephyrophobia", L"Gephyrophobia" },
+	{ "icefields", L"Ice Fields", L"Slipping and\r\nSliding\r\n\r\n4-16 players\r\n\r\nSupports vehicles" },
+	{ "deathisland", L"Death Island", L"Sand, Surf, and\r\nSpent Shells\r\n\r\n4-16 players\r\n\r\nSupports vehicles" },
+	{ "dangercanyon", L"Danger Canyon",
+		L"Don't Look Down...\r\nUnless You Fall\r\n\r\n4-16 players\r\n\r\nSupports vehicles" },
+	{ "infinity", L"Infinity", L"I Imagined it\r\nWould Be Bigger\r\n\r\n4-16 players\r\n\r\nSupports vehicles" },
+	{ "timberland", L"Timberland", L"An Enemy Behind\r\nEvery Tree\r\n\r\n4-16 players\r\n\r\nSupports vehicles" },
+	{ "gephyrophobia", L"Gephyrophobia", L"Scary, huh?\r\n\r\n\r\n2-12 players\r\n\r\nSupports vehicles" },
 };
+
+/* Halo PC's menus' map pictures, in its install's ui.map: the tag, and the
+part of each 256x128 picture the menus show (LEVEL_PICTURE_SHAPE, at its
+corner) */
+#define STOCK_MAP_PICTURES_TAG_NAME "ui\\shell\\bitmaps\\mp_map_grafix"
+#define STOCK_MAP_UI_MAP CUSTOM_EDITION_INSTALL_MAP_DIRECTORY "ui.map"
+#define STOCK_MAP_BITMAPS_MAP CUSTOM_EDITION_INSTALL_MAP_DIRECTORY "bitmaps.map"
+/* a Halo PC (7) or Custom Edition (609) cache's tags are read at this
+address; at most this much of them is read */
+#define STOCK_MAP_TAG_BASE 0x40440000UL
+#define STOCK_MAP_MAXIMUM_TAG_BYTES 0x04000000UL
 
 /* for a map without a description file */
 static wchar_t const default_description[] = L"Halo Custom\r\nEdition map";
@@ -183,6 +215,7 @@ static void custom_edition_maps_forget(
 			bitmap_delete(globals->campaigns[map_index].picture);
 	}
 	globals->map_count = 0;
+	globals->stock_count = 0;
 	globals->campaign_count = 0;
 
 	return;
@@ -201,6 +234,14 @@ static short stock_map_index(
 			return index;
 	}
 	return NONE;
+}
+
+/* the map's index in stock_maps when it is the map of that name (not a
+version of it, named for its hash), or NONE */
+static short stock_map_exact_index(
+	char const *name)
+{
+	return map_share_name_hashed(name) ? NONE : stock_map_index(name);
 }
 
 /* A map's menu name: Halo PC's name for its own maps, otherwise the file
@@ -308,7 +349,12 @@ static void custom_edition_map_description_read(
 	}
 	map->description[length] = 0;
 
-	if (!length)
+	if (!length && stock_map_exact_index(map->name) != NONE)
+	{
+		ustrncpy(map->description, stock_maps[stock_map_exact_index(map->name)].description, MAXIMUM_DESCRIPTION_LENGTH);
+		map->description[MAXIMUM_DESCRIPTION_LENGTH] = 0;
+	}
+	else if (!length)
 	{
 		csmemcpy(map->description, default_description, sizeof(default_description));
 	}
@@ -510,10 +556,228 @@ static void custom_edition_maps_look_for(
 	qsort(globals->campaigns, globals->campaign_count, sizeof(globals->campaigns[0]), custom_edition_map_compare);
 	custom_edition_maps_tell_versions_apart(globals->maps, globals->map_count);
 	custom_edition_maps_tell_versions_apart(globals->campaigns, globals->campaign_count);
-	error(_error_silent, "custom edition: %d multiplayer maps for the level list, %d campaign maps", globals->map_count,
-		globals->campaign_count);
+	/* (Halo PC's own first, in its menus' order: MULTIPLAYER's) */
+	globals->stock_count = 0;
+	{
+		static struct custom_edition_map moved;
+		short stock;
+		short map_index;
+
+		for (stock = 0; stock < NUMBEROF(stock_maps); stock++)
+		{
+			for (map_index = globals->stock_count; map_index < globals->map_count; map_index++)
+			{
+				if (stock_map_exact_index(globals->maps[map_index].name) == stock)
+					break;
+			}
+			if (map_index == globals->map_count)
+				continue;
+			moved = globals->maps[map_index];
+			memmove(&globals->maps[globals->stock_count + 1], &globals->maps[globals->stock_count],
+				(map_index - globals->stock_count) * sizeof(globals->maps[0]));
+			globals->maps[globals->stock_count++] = moved;
+		}
+	}
+	error(_error_silent, "custom edition: %d multiplayer maps for the level list (%d of them Halo PC's own), %d campaign maps",
+		globals->map_count, globals->stock_count, globals->campaign_count);
 
 	return;
+}
+
+/* (stock_map_picture_read) bytes of a file at an offset; FALSE when it has
+fewer */
+static boolean stock_map_file_read(
+	FILE *stream,
+	unsigned long offset,
+	void *buffer,
+	unsigned long size)
+{
+	return fseek(stream, (long)offset, SEEK_SET) == 0 && fread(buffer, 1, size, stream) == size;
+}
+
+/* (stock_map_picture_read) the little-endian word or long at `offset` of
+`bytes`, which has `size` of them; 0 past them */
+static unsigned long stock_map_long(
+	byte const *bytes,
+	unsigned long size,
+	unsigned long offset)
+{
+	return offset <= size && size - offset >= 4 ? (unsigned long)bytes[offset] | ((unsigned long)bytes[offset + 1] << 8) |
+		((unsigned long)bytes[offset + 2] << 16) | ((unsigned long)bytes[offset + 3] << 24) : 0;
+}
+
+static unsigned long stock_map_word(
+	byte const *bytes,
+	unsigned long size,
+	unsigned long offset)
+{
+	return offset <= size && size - offset >= 2 ? (unsigned long)bytes[offset] | ((unsigned long)bytes[offset + 1] << 8) : 0;
+}
+
+/* Halo PC's picture of one of its own maps (stock_maps' `stock`), from its
+install's ui.map (mp_map_grafix, read as its tags lay it out: a bitmap's
+pixels in ui.map or bitmaps.map, DXT1), as the menus' picture texture; NULL
+when there is none (logged). Every offset and size is checked against what
+was read: the files are the player's. */
+static struct bitmap_data *stock_map_picture_read(
+	short stock)
+{
+	FILE *ui = fopen(STOCK_MAP_UI_MAP, "rb");
+	FILE *pixels_file = NULL;
+	byte header[0x800];
+	byte *tags = NULL;
+	byte *pixels = NULL;
+	byte *rgba = NULL;
+	struct bitmap_data *bitmap = NULL;
+	unsigned long tag_offset, tag_size, instances, count, index;
+	unsigned long width = 0, height = 0, pixel_offset = 0, pixel_size = 0, flags = 0, format = 0;
+	boolean found = FALSE;
+	char const *failure = "it has no map pictures";
+
+	if (!ui)
+		return NULL;
+	if (!stock_map_file_read(ui, 0, header, sizeof(header)) || stock_map_long(header, sizeof(header), 0) != 'head' ||
+		(stock_map_long(header, sizeof(header), 4) != 7 && stock_map_long(header, sizeof(header), 4) != 609))
+	{
+		failure = "it is not a Halo PC map";
+		goto done;
+	}
+	tag_offset = stock_map_long(header, sizeof(header), 0x10);
+	tag_size = stock_map_long(header, sizeof(header), 0x14);
+	if (tag_size < 0x28 || tag_size > STOCK_MAP_MAXIMUM_TAG_BYTES || !(tags = malloc(tag_size)) ||
+		!stock_map_file_read(ui, tag_offset, tags, tag_size))
+	{
+		failure = "its tags could not be read";
+		goto done;
+	}
+	instances = stock_map_long(tags, tag_size, 0) - STOCK_MAP_TAG_BASE;
+	count = stock_map_long(tags, tag_size, 0x0C);
+	for (index = 0; index < count && !found; index++)
+	{
+		unsigned long entry = instances + index * 0x20;
+		unsigned long name, data, bitmaps, bitmap_count, element, character;
+
+		if (entry >= tag_size || tag_size - entry < 0x20)
+			break;
+		if (stock_map_long(tags, tag_size, entry) != 'bitm')
+			continue;
+		name = stock_map_long(tags, tag_size, entry + 0x10) - STOCK_MAP_TAG_BASE;
+		for (character = 0; name < tag_size && character < tag_size - name && STOCK_MAP_PICTURES_TAG_NAME[character] &&
+			(char)tags[name + character] == STOCK_MAP_PICTURES_TAG_NAME[character]; character++)
+			;
+		if (STOCK_MAP_PICTURES_TAG_NAME[character] || name + character >= tag_size || tags[name + character])
+			continue;
+		found = TRUE;
+		data = stock_map_long(tags, tag_size, entry + 0x14) - STOCK_MAP_TAG_BASE;
+		bitmap_count = stock_map_long(tags, tag_size, data + 0x60);
+		bitmaps = stock_map_long(tags, tag_size, data + 0x64) - STOCK_MAP_TAG_BASE;
+		if (data >= tag_size || (unsigned long)(STOCK_MAP_FIRST_PICTURE + stock) >= bitmap_count)
+			break;
+		element = bitmaps + (unsigned long)(STOCK_MAP_FIRST_PICTURE + stock) * 0x30;
+		if (element >= tag_size || tag_size - element < 0x30)
+			break;
+		width = stock_map_word(tags, tag_size, element + 4);
+		height = stock_map_word(tags, tag_size, element + 6);
+		format = stock_map_word(tags, tag_size, element + 0x0C);
+		flags = stock_map_word(tags, tag_size, element + 0x0E);
+		pixel_offset = stock_map_long(tags, tag_size, element + 0x18);
+		pixel_size = stock_map_long(tags, tag_size, element + 0x1C);
+	}
+	if (!width)
+		goto done;
+	/* (DXT1, at least the menus' picture, whole blocks) */
+	if (format != 14 || width < LEVEL_PICTURE_SHAPE_WIDTH || height < LEVEL_PICTURE_SHAPE_HEIGHT || width > 1024 ||
+		height > 1024 || (width & 3) || (height & 3) || pixel_size < width * height / 2)
+	{
+		failure = "its picture is not one this reads";
+		goto done;
+	}
+	pixels_file = (flags & 0x100) ? fopen(STOCK_MAP_BITMAPS_MAP, "rb") : ui;
+	pixels = malloc(width * height / 2);
+	rgba = malloc(width * height * 4);
+	if (!pixels_file || !pixels || !rgba || !stock_map_file_read(pixels_file, pixel_offset, pixels, width * height / 2))
+	{
+		failure = "its picture's pixels could not be read";
+		goto done;
+	}
+	{
+		unsigned long block_x, block_y;
+		byte const *block = pixels;
+
+		for (block_y = 0; block_y < height; block_y += 4)
+		{
+			for (block_x = 0; block_x < width; block_x += 4, block += 8)
+				bcdec_bc1(block, rgba + (block_y * width + block_x) * 4, (int)(width * 4));
+		}
+	}
+	bitmap = bitmap_2d_new(PICTURE_TEXTURE_SIZE, PICTURE_TEXTURE_SIZE, 0, _bitmap_format_a8r8g8b8);
+	if (bitmap && bitmap->base_address)
+	{
+		uint32_t *texels = XBOX_POINTER(uint32_t, bitmap->base_address);
+		unsigned long x, y;
+
+		/* (the picture's corner, the menus' shape, over the whole texture:
+		each texel from the four nearest pixels) */
+		for (y = 0; y < PICTURE_TEXTURE_SIZE; y++)
+		{
+			real source_y = ((real)y + 0.5f) * LEVEL_PICTURE_SHAPE_HEIGHT / PICTURE_TEXTURE_SIZE - 0.5f;
+			long y0 = (long)source_y;
+			real fy = source_y - (real)y0;
+			long y1;
+
+			if (source_y < 0.0f)
+			{
+				y0 = 0;
+				fy = 0.0f;
+			}
+			y1 = MIN(y0 + 1, LEVEL_PICTURE_SHAPE_HEIGHT - 1);
+			for (x = 0; x < PICTURE_TEXTURE_SIZE; x++)
+			{
+				real source_x = ((real)x + 0.5f) * LEVEL_PICTURE_SHAPE_WIDTH / PICTURE_TEXTURE_SIZE - 0.5f;
+				long x0 = (long)source_x;
+				real fx = source_x - (real)x0;
+				long x1;
+				uint32_t texel = 0xFF000000u;
+				short channel;
+
+				if (source_x < 0.0f)
+				{
+					x0 = 0;
+					fx = 0.0f;
+				}
+				x1 = MIN(x0 + 1, LEVEL_PICTURE_SHAPE_WIDTH - 1);
+				for (channel = 0; channel < 3; channel++)
+				{
+					real top = rgba[(y0 * width + x0) * 4 + channel] * (1.0f - fx) + rgba[(y0 * width + x1) * 4 + channel] * fx;
+					real bottom = rgba[(y1 * width + x0) * 4 + channel] * (1.0f - fx) + rgba[(y1 * width + x1) * 4 + channel] * fx;
+					long value = (long)(top * (1.0f - fy) + bottom * fy + 0.5f);
+
+					/* (rgba is red, green, blue; the texel red at 16) */
+					texel |= (uint32_t)PIN(value, 0, 255) << (16 - 8 * channel);
+				}
+				texels[y * PICTURE_TEXTURE_SIZE + x] = texel;
+			}
+		}
+		bitmap_rebuild(bitmap);
+	}
+	if (bitmap && !bitmap->hardware_format)
+	{
+		bitmap_delete(bitmap);
+		bitmap = NULL;
+	}
+	failure = NULL;
+
+done:
+	if (failure)
+		error(_error_silent, "custom edition: Halo PC's picture of %s is not shown: %s (%s)", stock_maps[stock].file,
+			failure, STOCK_MAP_UI_MAP);
+	if (pixels_file && pixels_file != ui)
+		fclose(pixels_file);
+	fclose(ui);
+	free(tags);
+	free(pixels);
+	free(rgba);
+	return bitmap;
 }
 
 /* Loads the map's picture as a texture. Returns NULL if it has none, or if
@@ -540,7 +804,8 @@ static struct bitmap_data *custom_edition_map_picture_read(
 	}
 	if (!stream)
 	{
-		return NULL;
+		/* (one of Halo PC's own: Halo PC's picture of it) */
+		return stock_map_exact_index(map->name) != NONE ? stock_map_picture_read(stock_map_exact_index(map->name)) : NULL;
 	}
 	if (fseek(stream, 0, SEEK_END) == 0 &&
 		(size = ftell(stream)) >= 0 &&
@@ -773,7 +1038,7 @@ short custom_edition_maps_count(
 		custom_edition_maps_look_for();
 	}
 
-	return campaign ? globals->campaign_count : globals->map_count;
+	return campaign ? globals->campaign_count : globals->map_count - globals->stock_count;
 }
 
 short custom_edition_maps_display_index_of(
@@ -781,7 +1046,8 @@ short custom_edition_maps_display_index_of(
 	short index)
 {
 	return index < 0 || index >= custom_edition_maps_count(campaign) ? NONE :
-		(campaign ? FIRST_CUSTOM_CAMPAIGN_DISPLAY_INDEX : FIRST_DISPLAY_INDEX) + index;
+		(campaign ? FIRST_CUSTOM_CAMPAIGN_DISPLAY_INDEX : FIRST_DISPLAY_INDEX + custom_edition_maps_globals.stock_count) +
+		index;
 }
 
 char const *custom_edition_maps_level_name(

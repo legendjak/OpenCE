@@ -1164,6 +1164,17 @@ static short xbox_multiplayer_map_count(short multiplayer_map_count)
 
 static void multiplayer_map_text(short map, wchar_t *text)
 {
+	short display_index = custom_edition_maps_level_display_index(map);
+
+	/* (Halo PC's own maps after the Xbox's: custom_edition_maps.c) */
+	if (display_index != map)
+	{
+		wchar_t const *name = custom_edition_maps_name(display_index);
+
+		ustrncpy(text, name ? name : L"", ROW_TEXT_LENGTH - 1);
+		text[ROW_TEXT_LENGTH - 1] = 0;
+		return;
+	}
 	string_get("pc\\main_menu\\mp_map_list", map, text);
 }
 
@@ -1430,6 +1441,9 @@ static short map_kind_display_index(short kind, short entry)
 		return custom_edition_maps_display_index_of(TRUE, entry);
 	case MAP_KIND_CUSTOM_MULTIPLAYER:
 		return custom_edition_maps_display_index_of(FALSE, entry);
+	case MAP_KIND_MULTIPLAYER:
+		/* (Halo PC's own maps after the Xbox's are Custom Edition maps) */
+		return custom_edition_maps_level_display_index(entry);
 	default:
 		return entry;
 	}
