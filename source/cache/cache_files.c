@@ -642,6 +642,13 @@ void scenario_tags_unload(
 
 		mods_tags_unloaded();
 	}
+	/* port: the Xbox's teleporter field goes before the menus' tags, which
+	its were added after (port/linux/game/xbox_teleporters.c) */
+	{
+		extern void xbox_teleporters_tags_unloaded(void);
+
+		xbox_teleporters_tags_unloaded();
+	}
 	/* port: MCC's appended pause table unwinds before the native menu table. */
 	mcc_pause_runtime_unload();
 	/* port: the menus' tags go, and the map's own table comes back
@@ -1359,6 +1366,13 @@ long scenario_tags_load(
 				extern void menu_tags_loaded(char const *map_name);
 
 				menu_tags_loaded(cache_file_globals.header.name);
+			}
+			/* port: the Xbox's teleporter field on a Halo PC map, its tags
+			added after the menus' (port/linux/game/xbox_teleporters.c) */
+			{
+				extern void xbox_teleporters_tags_loaded(void);
+
+				xbox_teleporters_tags_loaded();
 			}
 			/* port: register CE HUD bitmaps before mods replace their tags
 			(port/linux/game/hud_hires_tags.c), as for Xbox maps below. */

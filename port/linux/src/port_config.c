@@ -318,6 +318,10 @@ static const struct config_setting config_settings[] =
 		"pixel by the lights the game gives them, without the facets the light\n"
 		"of each vertex shows across curved surfaces; false lights each vertex,\n"
 		"as the Xbox does." },
+	{ "display.xbox_teleporters", _config_boolean, "true", "HALO_XBOX_TELEPORTERS", _environment_value, _platform_all,
+		"Draw the teleporters' field on Halo PC's own maps with the Xbox's shader\n"
+		"(a swirl of energy, where Halo PC's is a flat green frame), read from\n"
+		"one of the game's own multiplayer maps; false: Halo PC's." },
 	{ "display.structure_culling", _config_integer, "31", "HALO_STRUCTURE_CULLING", _environment_value,
 		_platform_all,
 		"Which tests skip the level's triangles the camera cannot see, as bits\n"

@@ -120,6 +120,10 @@ after a load), as their reviews asked.
   it would run off the edge.
 - Halo PC's crosshair warnings ("Reload", the rocket warthog's dots) are drawn
   with the Xbox's high-res texture: the sheets are laid out alike.
+- Halo PC's maps' teleporters show the Xbox's swirling field rather than Halo
+  PC's flat green one (`display.xbox_teleporters`, on): the Xbox's shader and
+  bitmaps of that name are read from one of the game's own multiplayer maps
+  and stand in for Halo PC's (`port/linux/game/xbox_teleporters.c`).
 - Halo PC's six maps of its own (Ice Fields, Death Island, Danger Canyon,
   Infinity, Timberland, Gephyrophobia), found in `paths.custom_edition`'s
   maps, are listed under MULTIPLAYER after the Xbox's maps, with Halo PC's

@@ -883,7 +883,12 @@ short cache_file_read(
 	once; the request stays free (port/linux/game/custom_edition_cache.c) */
 	if (custom_edition_cache_tags_loaded())
 	{
-		custom_edition_cache_read(tag_index, offset, size, buffer);
+		extern boolean xbox_teleporters_read(long tag_index, long offset, long size, void *buffer);
+
+		/* port: (but the Xbox's teleporter field's bitmaps, from the Xbox
+		map they were read from: port/linux/game/xbox_teleporters.c) */
+		if (!xbox_teleporters_read(tag_index, offset, size, buffer))
+			custom_edition_cache_read(tag_index, offset, size, buffer);
 		*completion_flag_reference = TRUE;
 
 		return request_index;
