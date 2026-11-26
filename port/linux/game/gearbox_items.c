@@ -57,6 +57,11 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 #include "objects/objects.h"
 #include "scenario/scenario.h"
 #include "physics/collisions.h"
+#include "structures/structure_bsp_definitions.h"
+#include "physics/bsp3d.h"
+#include "physics/bsp2d.h"
+#include "physics/collision_bsp.h"
+#include "physics/collision_bsp_definitions.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -298,6 +303,57 @@ static long gearbox_next_flyer;
 /* (how far below a Banshee its ground is looked for: further than any map is
 tall) */
 static real_vector3d const gearbox_down = { 0.0f, 0.0f, -2000.0f };
+
+/* Halo PC's collision of the map (gearbox_barriers_load): its structure
+bsp's bytes, read from the Halo PC map's file, and its collision bsp, whose
+blocks are rebased onto them */
+static struct
+{
+	boolean loaded;
+	byte *data;
+	struct collision_bsp bsp;
+	long barrier_surfaces;
+} gearbox_barriers;
+
+/* (collision_bsp.c's: a leaf, a bsp2d reference, and a surface's flag) */
+struct gearbox_collision_leaf
+{
+	word flags;
+	short bsp2d_reference_count;
+	long first_bsp2d_reference_index;
+};
+
+struct gearbox_bsp2d_reference
+{
+	long plane_designator;
+	long root_index;
+};
+
+/* (a structure bsp's header in a cache file: cache_files.c's) */
+struct gearbox_structure_bsp_header
+{
+	unsigned long base_address;
+	long vertex_buffer_count;
+	unsigned long vertex_buffers;
+	long index_buffer_count;
+	unsigned long index_buffers;
+	unsigned long signature;
+};
+
+typedef char verify_gearbox_collision_leaf_size[sizeof(struct gearbox_collision_leaf) == 8 ? 1 : -1];
+typedef char verify_gearbox_bsp2d_reference_size[sizeof(struct gearbox_bsp2d_reference) == 8 ? 1 : -1];
+typedef char verify_gearbox_structure_bsp_header_size[sizeof(struct gearbox_structure_bsp_header) == 0x18 ? 1 : -1];
+
+struct gearbox_tag_header;
+static void gearbox_barriers_load(char const *path, struct gearbox_tag_header const *donor);
+
+enum
+{
+	GEARBOX_SURFACE_INVISIBLE_BIT = 1,
+	GEARBOX_STRUCTURE_BSP_SIGNATURE = 'sbsp',
+	/* (the most of a structure bsp read: Halo PC's largest is 17 MB) */
+	GEARBOX_MAXIMUM_STRUCTURE_BSP_BYTES = 0x04000000
+};
 
 /* ---------- prototypes */
 
@@ -1810,6 +1866,7 @@ void gearbox_items_tags_loaded(
 	gearbox_items_globals.loaded = TRUE;
 	memset(gearbox_flyers, 0xFF, sizeof(gearbox_flyers));
 	gearbox_next_flyer = 0;
+	gearbox_barriers_load(path, donor);
 
 	return;
 }
@@ -1839,6 +1896,9 @@ void gearbox_items_tags_unloaded(
 	free(gearbox_items_globals.instances);
 	free(gearbox_items_globals.donor_handles);
 	custom_edition_cache_donor_unload();
+	if (gearbox_barriers.data)
+		free(gearbox_barriers.data);
+	memset(&gearbox_barriers, 0, sizeof(gearbox_barriers));
 	memset(&gearbox_items_globals, 0, sizeof(gearbox_items_globals));
 	for (root = 0; root < NUMBER_OF_GEARBOX_ROOTS; root++)
 		gearbox_items_globals.roots[root] = NONE;
@@ -1879,9 +1939,274 @@ long gearbox_items_messaging_icons(
 	return gearbox_items_globals.messaging_icons;
 }
 
+/* ---- Halo PC's barriers. Halo PC's maps of the game's own names hold a
+flying vehicle in with invisible walls (two-sided invisible surfaces above
+their cliffs and at their corners) and a lower ceiling, which the Xbox's maps
+have not: a Banshee there could fly to where its camera left the map. The
+first structure bsp of the Halo PC map the items came from is read from its
+file (its tags, which say where, are the donor's: custom_edition_cache.c),
+and its collision bsp's blocks, each in what was read, are rebased onto the
+copy and every index the collision tests follow checked, as the tag
+validator checks a map's (tag_schema_collision.c): a bsp that is not right
+is not used (logged). */
+
+/* (gearbox_barriers_load) the block at `block` of the bsp read at `base`
+(`size` bytes from `data`), of elements `element_bytes` each, rebased onto
+`data`: FALSE if it is not in it */
+static boolean gearbox_barrier_block(
+	struct tag_block *block,
+	byte *data,
+	unsigned long size,
+	unsigned long base,
+	unsigned long element_bytes)
+{
+	unsigned long offset = (unsigned long)block->address - base;
+
+	if (block->count < 0 || (unsigned long)block->count > size / element_bytes)
+		return FALSE;
+	if (!block->count)
+	{
+		block->address = NULL;
+		return TRUE;
+	}
+	if ((unsigned long)block->address < base || offset > size || (unsigned long)block->count * element_bytes > size - offset)
+		return FALSE;
+	block->address = data + offset;
+
+	return TRUE;
+}
+
+/* (gearbox_barriers_load) a bsp child: a leaf or surface (LONG_MIN | its
+index, below `marked`), none (when `none`), or a node (below `nodes`) */
+static boolean gearbox_barrier_child(
+	long child,
+	long marked,
+	long nodes,
+	boolean none)
+{
+	if (child == NONE)
+		return none;
+	return child & LONG_MIN ? (child & LONG_MAX) < marked : child < nodes;
+}
+
+/* (gearbox_barriers_load) whether every index in the collision bsp is one of
+its: the planes, nodes, leaves, bsp2d references and nodes, surfaces, edges
+and vertices */
+static boolean gearbox_barrier_indices_valid(
+	struct collision_bsp const *bsp)
+{
+	long index;
+
+	if (!bsp->bsp3d.planes.count || !bsp->bsp3d.nodes.count)
+		return FALSE;
+	for (index = 0; index < bsp->bsp3d.nodes.count; index++)
+	{
+		struct bsp3d_node const *node = (struct bsp3d_node const *)bsp->bsp3d.nodes.address + index;
+
+		if ((node->plane_designator & LONG_MAX) >= bsp->bsp3d.planes.count ||
+			!gearbox_barrier_child(node->children[0], bsp->leaves.count, bsp->bsp3d.nodes.count, TRUE) ||
+			!gearbox_barrier_child(node->children[1], bsp->leaves.count, bsp->bsp3d.nodes.count, TRUE))
+		{
+			return FALSE;
+		}
+	}
+	for (index = 0; index < bsp->leaves.count; index++)
+	{
+		struct gearbox_collision_leaf const *leaf = (struct gearbox_collision_leaf const *)bsp->leaves.address + index;
+
+		if (leaf->bsp2d_reference_count < 0 || (leaf->bsp2d_reference_count &&
+			(leaf->first_bsp2d_reference_index < 0 ||
+				leaf->first_bsp2d_reference_index > bsp->bsp2d_references.count - leaf->bsp2d_reference_count)))
+		{
+			return FALSE;
+		}
+	}
+	for (index = 0; index < bsp->bsp2d_references.count; index++)
+	{
+		struct gearbox_bsp2d_reference const *reference =
+			(struct gearbox_bsp2d_reference const *)bsp->bsp2d_references.address + index;
+
+		if ((reference->plane_designator & LONG_MAX) >= bsp->bsp3d.planes.count ||
+			!gearbox_barrier_child(reference->root_index, bsp->surfaces.count, bsp->bsp2d.nodes.count, FALSE))
+		{
+			return FALSE;
+		}
+	}
+	for (index = 0; index < bsp->bsp2d.nodes.count; index++)
+	{
+		struct bsp2d_node const *node = (struct bsp2d_node const *)bsp->bsp2d.nodes.address + index;
+
+		if (!gearbox_barrier_child(node->child_indices[0], bsp->surfaces.count, bsp->bsp2d.nodes.count, FALSE) ||
+			!gearbox_barrier_child(node->child_indices[1], bsp->surfaces.count, bsp->bsp2d.nodes.count, FALSE))
+		{
+			return FALSE;
+		}
+	}
+	for (index = 0; index < bsp->surfaces.count; index++)
+	{
+		struct collision_surface const *surface = (struct collision_surface const *)bsp->surfaces.address + index;
+
+		if ((surface->plane_designator & LONG_MAX) >= bsp->bsp3d.planes.count ||
+			surface->first_edge_index < 0 || surface->first_edge_index >= bsp->edges.count)
+		{
+			return FALSE;
+		}
+	}
+	for (index = 0; index < bsp->edges.count; index++)
+	{
+		struct collision_edge const *edge = (struct collision_edge const *)bsp->edges.address + index;
+		short side;
+
+		for (side = 0; side < 2; side++)
+		{
+			if (edge->vertex_indices[side] < 0 || edge->vertex_indices[side] >= bsp->vertices.count ||
+				edge->edge_indices[side] < 0 || edge->edge_indices[side] >= bsp->edges.count ||
+				(edge->surface_indices[side] != NONE &&
+					(edge->surface_indices[side] < 0 || edge->surface_indices[side] >= bsp->surfaces.count)))
+			{
+				return FALSE;
+			}
+		}
+	}
+	for (index = 0; index < bsp->vertices.count; index++)
+	{
+		struct collision_vertex const *vertex = (struct collision_vertex const *)bsp->vertices.address + index;
+
+		if (vertex->first_edge_index < 0 || vertex->first_edge_index >= bsp->edges.count)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/* Reads Halo PC's collision of the map from its file at `path`, whose tags
+are the donor's (`donor`): its first structure bsp's (gearbox_barriers) */
+static void gearbox_barriers_load(
+	char const *path,
+	struct gearbox_tag_header const *donor)
+{
+	unsigned long donor_bytes;
+	byte *donor_tags = custom_edition_cache_donor_tags(&donor_bytes);
+	struct scenario const *donor_scenario;
+	struct scenario_structure_bsp_reference const *reference;
+	struct gearbox_structure_bsp_header header;
+	struct structure_bsp const *structure_bsp;
+	struct collision_bsp bsp;
+	unsigned long base, size, offset;
+	char const *failure = NULL;
+	FILE *stream = NULL;
+	byte *data = NULL;
+	long index;
+
+	memset(&gearbox_barriers, 0, sizeof(gearbox_barriers));
+	donor_scenario = donor_tags ? custom_edition_cache_tag_get(donor_tags, donor_bytes,
+		(unsigned long)donor->scenario_tag_index, GEARBOX_SCENARIO_TAG, sizeof(*donor_scenario)) : NULL;
+	reference = donor_scenario ? custom_edition_cache_block_element(donor_tags, donor_bytes,
+		&donor_scenario->structure_bsp_references, 0, sizeof(*reference)) : NULL;
+	if (!reference)
+	{
+		failure = "its scenario names no structure bsp";
+		goto done;
+	}
+	base = (unsigned long)reference->base_address;
+	size = (unsigned long)reference->file_size;
+	if (reference->file_offset < 0 || reference->file_size < (long)sizeof(header) ||
+		size > GEARBOX_MAXIMUM_STRUCTURE_BSP_BYTES)
+	{
+		failure = "its structure bsp's size is not one";
+		goto done;
+	}
+	stream = fopen(path, "rb");
+	data = malloc(size);
+	if (!stream || !data || fseek(stream, reference->file_offset, SEEK_SET) || fread(data, 1, size, stream) != size)
+	{
+		failure = "its structure bsp could not be read";
+		goto done;
+	}
+	memcpy(&header, data, sizeof(header));
+	offset = header.base_address - base;
+	if (header.signature != GEARBOX_STRUCTURE_BSP_SIGNATURE || header.base_address < base || offset > size ||
+		sizeof(struct structure_bsp) > size - offset)
+	{
+		failure = "its structure bsp's header is not one";
+		goto done;
+	}
+	structure_bsp = (struct structure_bsp const *)(data + offset);
+	offset = (unsigned long)structure_bsp->collision_bsp.address - base;
+	if (structure_bsp->collision_bsp.count < 1 || (unsigned long)structure_bsp->collision_bsp.address < base ||
+		offset > size || sizeof(bsp) > size - offset)
+	{
+		failure = "its structure bsp has no collision bsp";
+		goto done;
+	}
+	memcpy(&bsp, data + offset, sizeof(bsp));
+	if (!gearbox_barrier_block(&bsp.bsp3d.nodes, data, size, base, sizeof(struct bsp3d_node)) ||
+		!gearbox_barrier_block(&bsp.bsp3d.planes, data, size, base, sizeof(real_plane3d)) ||
+		!gearbox_barrier_block(&bsp.leaves, data, size, base, sizeof(struct gearbox_collision_leaf)) ||
+		!gearbox_barrier_block(&bsp.bsp2d_references, data, size, base, sizeof(struct gearbox_bsp2d_reference)) ||
+		!gearbox_barrier_block(&bsp.bsp2d.nodes, data, size, base, sizeof(struct bsp2d_node)) ||
+		!gearbox_barrier_block(&bsp.surfaces, data, size, base, sizeof(struct collision_surface)) ||
+		!gearbox_barrier_block(&bsp.edges, data, size, base, sizeof(struct collision_edge)) ||
+		!gearbox_barrier_block(&bsp.vertices, data, size, base, sizeof(struct collision_vertex)) ||
+		!gearbox_barrier_indices_valid(&bsp))
+	{
+		failure = "its collision bsp is damaged";
+		goto done;
+	}
+	gearbox_barriers.bsp = bsp;
+	gearbox_barriers.data = data;
+	gearbox_barriers.loaded = TRUE;
+	data = NULL;
+	for (index = 0; index < bsp.surfaces.count; index++)
+	{
+		if (TEST_FLAG(((struct collision_surface const *)bsp.surfaces.address)[index].flags, GEARBOX_SURFACE_INVISIBLE_BIT))
+			gearbox_barriers.barrier_surfaces++;
+	}
+	error(_error_silent, "gearbox items: Halo PC's collision of the map read (%ld surfaces, %ld of them invisible walls)",
+		bsp.surfaces.count, gearbox_barriers.barrier_surfaces);
+
+done:
+	if (failure)
+		error(_error_silent, "gearbox items: Halo PC's barriers are not used: %s ('%s')", failure, path);
+	if (stream)
+		fclose(stream);
+	if (data)
+		free(data);
+
+	return;
+}
+
+/* whether a Banshee's move this tick, from `from` by `move`, crosses one of
+Halo PC's barriers: an invisible wall, or a ceiling it rises into; its
+plane's normal (unit length) in `normal` */
+static boolean gearbox_barrier_crossed(
+	real_point3d const *from,
+	real_vector3d const *move,
+	real_vector3d *normal)
+{
+	struct collision_bsp_test_vector_result result;
+	real k;
+
+	if (!gearbox_barriers.loaded || (move->i == 0.0f && move->j == 0.0f && move->k == 0.0f))
+		return FALSE;
+	if (!collision_bsp_test_vector(FLAG(_collision_test_front_facing_surfaces_bit) |
+		FLAG(_collision_test_back_facing_surfaces_bit) | FLAG(_collision_test_ignore_breakable_surfaces_bit),
+		&gearbox_barriers.bsp, 0, NULL, from, move, 1.0f, &result) || !result.plane)
+	{
+		return FALSE;
+	}
+	k = result.plane->n.k < 0.0f ? -result.plane->n.k : result.plane->n.k;
+	if (!TEST_FLAG(result.flags, GEARBOX_SURFACE_INVISIBLE_BIT) && !(move->k > 0.0f && k > 0.7f))
+		return FALSE;
+	*normal = result.plane->n;
+
+	return TRUE;
+}
+
 /* ---- the items' Banshee kept in the map: the Xbox's maps were not made for
 flying, and a Banshee could fly out past their edges, where Halo PC's
-maps of the same name hold it in. Each tick a Banshee whose centre is
+maps of the same name hold it in with Halo PC's barriers (above), and the
+map's own edge: each tick a Banshee whose centre is
 outside the map's structure (in no cluster), or over no ground of it (its
 sky goes on past the cliffs, over nothing: a ray straight down meets no
 front of its surfaces), is put back where it last was inside it, and
@@ -1908,6 +2233,29 @@ void gearbox_items_update(
 			continue;
 		for (flyer = 0; flyer < GEARBOX_MAXIMUM_FLYERS && gearbox_flyers[flyer].object_index != iterator.index; flyer++)
 			;
+		/* (one crossing Halo PC's barriers is put back where it was, and
+		slides along them: its velocity into them taken away) */
+		if (flyer < GEARBOX_MAXIMUM_FLYERS)
+		{
+			real_vector3d move;
+			real_vector3d normal;
+
+			move.i = object->object.position.x - gearbox_flyers[flyer].inside.x;
+			move.j = object->object.position.y - gearbox_flyers[flyer].inside.y;
+			move.k = object->object.position.z - gearbox_flyers[flyer].inside.z;
+			if (gearbox_barrier_crossed(&gearbox_flyers[flyer].inside, &move, &normal))
+			{
+				real into = object->object.translational_velocity.i * normal.i +
+					object->object.translational_velocity.j * normal.j +
+					object->object.translational_velocity.k * normal.k;
+
+				object_set_position(iterator.index, &gearbox_flyers[flyer].inside, NULL, NULL);
+				object->object.translational_velocity.i -= into * normal.i;
+				object->object.translational_velocity.j -= into * normal.j;
+				object->object.translational_velocity.k -= into * normal.k;
+				continue;
+			}
+		}
 		scenario_location_from_point(&location, &object->object.position);
 		if (location.cluster_index != NONE &&
 			collision_test_vector(FLAG(_collision_test_structure_bit) | FLAG(_collision_test_front_facing_surfaces_bit),

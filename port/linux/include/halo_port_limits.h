@@ -90,8 +90,10 @@ which Halo PC map (game/gearbox_items.c), as its map's version.
 1047: those items include Halo PC's Shade (its gun turret), which Sidewinder
 places.
 1048: their Banshee is kept inside the map (gearbox_items_update), on every
-machine. */
-#define HALO_PORT_NETWORK_VERSION 1048
+machine.
+1049: and held by Halo PC's invisible walls and ceiling of that map, read
+from its file. */
+#define HALO_PORT_NETWORK_VERSION 1049
 /* ... the advertisement's reserved bytes: the version (a little-endian word),
 then flags, then the game's kind (an OpenCE gametype's mode, and Hardcore:
 port/linux/game/game_modes.h's game_modes_kind), for the server browser */
