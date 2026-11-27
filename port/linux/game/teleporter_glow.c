@@ -11,7 +11,7 @@ PC's six maps of its own (custom_edition_maps.c's stock_maps: Danger Canyon,
 Death Island and the others), lit by Gearbox, have little or none of it:
 their teleporters stand on unlit grass (Danger Canyon) or floors (Death
 Island's rooms), or faintly lit ones (Gephyrophobia, Infinity), and the
-Xbox's field they now show (xbox_teleporters.c) lights nothing.
+Xbox's field they now show (xbox_shaders.c) lights nothing.
 
 On those maps, each teleporter's entrance (a netgame flag of the teleporter
 sources, the scenario's netgame_flags: a two-way teleporter has one at each

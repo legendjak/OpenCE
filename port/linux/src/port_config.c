@@ -322,6 +322,11 @@ static const struct config_setting config_settings[] =
 		"Draw the teleporters' field on Halo PC's own maps with the Xbox's shader\n"
 		"(a swirl of energy, where Halo PC's is a flat green frame), read from\n"
 		"one of the game's own multiplayer maps; false: Halo PC's." },
+	{ "display.xbox_campaign_shaders", _config_boolean, "true", "HALO_XBOX_CAMPAIGN_SHADERS", _environment_value, _platform_all,
+		"Draw the Covenant field generators' shields (Danger Canyon,\n"
+		"Gephyrophobia) and Gephyrophobia's bridge's energy ropes with the Xbox\n"
+		"campaign's shaders, read from its b30 and b40, where Halo PC draws\n"
+		"simpler ones; false: Halo PC's." },
 	{ "display.teleporter_glow", _config_boolean, "true", "HALO_TELEPORTER_GLOW", _environment_value, _platform_all,
 		"Light the floor at the teleporters of Halo PC's own maps green, as the\n"
 		"Xbox's maps' lightmaps do around theirs (a light of the game's at each\n"

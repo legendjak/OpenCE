@@ -649,12 +649,12 @@ void scenario_tags_unload(
 
 		mods_tags_unloaded();
 	}
-	/* port: the Xbox's teleporter field goes before the menus' tags, which
-	its were added after (port/linux/game/xbox_teleporters.c) */
+	/* port: the Xbox's shaders go before the menus' tags, which theirs were
+	added after (port/linux/game/xbox_shaders.c) */
 	{
-		extern void xbox_teleporters_tags_unloaded(void);
+		extern void xbox_shaders_tags_unloaded(void);
 
-		xbox_teleporters_tags_unloaded();
+		xbox_shaders_tags_unloaded();
 	}
 	/* port: MCC's appended pause table unwinds before the native menu table. */
 	mcc_pause_runtime_unload();
@@ -1374,12 +1374,13 @@ long scenario_tags_load(
 
 				menu_tags_loaded(cache_file_globals.header.name);
 			}
-			/* port: the Xbox's teleporter field on a Halo PC map, its tags
-			added after the menus' (port/linux/game/xbox_teleporters.c) */
+			/* port: the Xbox's shaders on a Halo PC map (the teleporters',
+			the field generators' and the energy ropes'), their tags added
+			after the menus' (port/linux/game/xbox_shaders.c) */
 			{
-				extern void xbox_teleporters_tags_loaded(void);
+				extern void xbox_shaders_tags_loaded(void);
 
-				xbox_teleporters_tags_loaded();
+				xbox_shaders_tags_loaded();
 			}
 			/* port: the campaign Shade's look on Halo PC's multiplayer Shade
 			(port/linux/game/campaign_shade.c) */

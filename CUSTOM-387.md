@@ -128,7 +128,22 @@ after a load), as their reviews asked.
 - Halo PC's maps' teleporters show the Xbox's swirling field rather than Halo
   PC's flat green one (`display.xbox_teleporters`, on): the Xbox's shader and
   bitmaps of that name are read from one of the game's own multiplayer maps
-  and stand in for Halo PC's (`port/linux/game/xbox_teleporters.c`).
+  and stand in for Halo PC's (`port/linux/game/xbox_shaders.c`).
+- The Covenant field generators' shields (Danger Canyon, Gephyrophobia) and
+  Gephyrophobia's bridge's energy ropes look as the Xbox's campaign draws
+  them (`display.xbox_campaign_shaders`, on): a see-through violet field
+  with moving streaks that bends what is behind it, where Halo PC draws a
+  white-rimmed bubble of blue dust; and bright animated blue ropes, where
+  Halo PC's are faint lines. Halo PC has not the Xbox's generic
+  transparent shaders; Gearbox drew simpler ones in their place (the
+  ropes' a copy of b40's, with b40's bitmaps). The Xbox's are read from
+  the game's own campaign maps (the shield from c20, the ropes from b40's
+  `b40_energyrope`), with their bitmaps, as the teleporters' are, and
+  stand in for Halo PC's (`port/linux/game/xbox_shaders.c`). A map is
+  read in pieces as it is inflated, so that b40 (280 MB inflated) is never
+  held whole: the first Halo PC map of a run with them takes about 2
+  seconds longer to load. This picks tags by name, Gephyrophobia's ropes'
+  among them.
 - The floor at the teleporters of Halo PC's own maps glows green, as the
   Xbox's maps' lightmaps make it glow around theirs (`display.teleporter_glow`,
   on): a green dynamic light just over the floor at each teleporter's
