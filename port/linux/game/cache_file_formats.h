@@ -260,6 +260,10 @@ enum custom_edition_channel_order
 	_custom_edition_channels_hud_meter,
 	/* Authored Xbox-order meters, including sheets also used as artwork. */
 	_custom_edition_channels_hud_meter_xbox,
+	/* a model shader's multipurpose masks as Halo PC keeps them, its
+	specular mask read from alpha: Halo PC's first-person fuel rod gun's,
+	whose only mask is there (display.e3_fuel_rod, custom_edition_bitmaps.c) */
+	_custom_edition_channels_multipurpose_alpha_specular,
 
 	NUMBER_OF_CUSTOM_EDITION_CHANNEL_ORDERS
 };

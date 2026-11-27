@@ -1258,7 +1258,8 @@ boolean mod_bitmaps_read(
 		buffer,
 		!port_mods_file_xbox_channels(made->file) &&
 		(mod_bitmaps_globals.orders_found || custom_edition_cache_tags_loaded()) ?
-			(unsigned char)custom_edition_bitmap_channel_order(made->tag_index, (long)(bitmap - made->bitmaps)) :
+			(unsigned char)custom_edition_bitmap_pixels_channel_order(bitmap, buffer,
+				custom_edition_bitmap_channel_order(made->tag_index, (long)(bitmap - made->bitmaps))) :
 			_custom_edition_channels_xbox);
 	/* (on failure it logs, and the texture shows the pixels as read) */
 	rasterizer_xbox_bitmap_rebuild_hardware_format(bitmap);

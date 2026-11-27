@@ -24,6 +24,20 @@ the renderer is told where Halo PC keeps the channels of each bitmap's
 pixels as they arrive, and samples them in this build's order
 (port/linux/src/xbox_textures.c).
 
+Halo PC's first-person fuel rod gun (FUEL_ROD_SHADER_NAME, custom-387) has
+a multipurpose map whose color channels are empty, its one mask (the gun's
+raised plates bright, its seams dark) in alpha, where Halo PC keeps the
+color change mask, which its shader does not use. So Halo PC draws the gun
+without the reflections its shader gives it (the Banshee's purple cube map,
+at four tenths) and without its detail map, which that shader masks with
+the reflections: a dark blue-grey. Gearbox's E3 2003 trailer shows it glossy
+purple, as it looks with that mask read as its specular mask. With
+display.e3_fuel_rod that bitmap is drawn so, if it is as Gearbox made it:
+one 16-bit bitmap with alpha (multipurpose_channel_order), its color
+channels empty (custom_edition_bitmap_pixels_channel_order, as its pixels
+arrive). Like custom-387's other changes to Halo PC's items, this picks a
+tag by name.
+
 The bitmaps of mods (port/linux/game/mod_bitmaps.c) are Halo PC's too,
 whatever map they are played on: their channels are found in the same way
 in the loaded map's tags, once the mods' bitmaps are in them.
@@ -46,6 +60,9 @@ in the loaded map's tags, once the mods' bitmaps are in them.
 #include <stdlib.h>
 
 /* ---------- constants */
+
+#define FUEL_ROD_SHADER_NAME "weapons\\plasma_cannon\\shaders\\fp_plasmacannon"
+#define FUEL_ROD_MULTIPURPOSE_NAME "weapons\\plasma_cannon\\fp\\bitmaps\\fp_plasmacannon_multipurpose"
 
 enum
 {
@@ -211,6 +228,8 @@ static struct custom_edition_bitmaps_globals custom_edition_bitmaps_globals;
 /* the game's (port: cache_files.c) */
 void *cache_files_tag_instances(long *count);
 boolean tag_index_is_group(long tag_index, long group_tag);
+/* port_config.c */
+int config_boolean(char const *name);
 
 /* ---------- private code */
 
@@ -626,6 +645,37 @@ static void weapon_hud_statics_note(
 	return;
 }
 
+/* the order the multipurpose map of the model shader of absolute index
+`tag_index` is drawn in: Halo PC's, or with display.e3_fuel_rod the
+specular mask from alpha for the first-person fuel rod gun's, if it is one
+16-bit bitmap with alpha as Gearbox's is (its pixels are checked as they
+arrive: custom_edition_bitmap_pixels_channel_order) */
+static short multipurpose_channel_order(
+	struct tag_view const *view,
+	long tag_index,
+	struct shader_model_maps const *shader)
+{
+	struct bitmap_group *group;
+	struct bitmap_data *bitmap;
+
+	if (!config_boolean("display.e3_fuel_rod") ||
+		shader->multipurpose_map.index == NONE ||
+		csstrcasecmp(view_tag_name(view, tag_index), FUEL_ROD_SHADER_NAME) ||
+		csstrcasecmp(view_tag_name(view, DATUM_INDEX_TO_ABSOLUTE_INDEX(shader->multipurpose_map.index)),
+			FUEL_ROD_MULTIPURPOSE_NAME))
+	{
+		return _custom_edition_channels_multipurpose;
+	}
+	group = view_tag_get(view, shader->multipurpose_map.index, BITMAP_GROUP_TAG, sizeof(*group));
+	bitmap = group && group->bitmaps.count == 1 ?
+		view_block_element(view, &group->bitmaps, 0, sizeof(*bitmap)) :
+		NULL;
+
+	return bitmap && bitmap->format == _bitmap_format_a4r4g4b4 ?
+		_custom_edition_channels_multipurpose_alpha_specular :
+		_custom_edition_channels_multipurpose;
+}
+
 /* the bitmaps of the tags `view` reads whose channels Halo PC keeps
 elsewhere (custom_edition_reordered_bitmaps_find) */
 static boolean reordered_bitmaps_find(
@@ -646,7 +696,8 @@ static boolean reordered_bitmaps_find(
 	tag_index = NONE;
 	while ((shader = view_tag_next(view, SHADER_MODEL_GROUP_TAG, sizeof(*shader), &tag_index)) != NULL)
 	{
-		if (!reordered_bitmaps_mark(view, shader->multipurpose_map.index, NONE, _custom_edition_channels_multipurpose))
+		if (!reordered_bitmaps_mark(view, shader->multipurpose_map.index, NONE,
+			multipurpose_channel_order(view, tag_index, shader)))
 		{
 			return FALSE;
 		}
@@ -702,13 +753,17 @@ static boolean reordered_bitmaps_find(
 				view->tag_cache ? "custom edition" : "mods",
 				bitmap->bitmap_index,
 				view_tag_name(view, DATUM_INDEX_TO_ABSOLUTE_INDEX(bitmap->handle)),
-				bitmap->channel_order == _custom_edition_channels_multipurpose ? "multipurpose map" : "HUD meter");
+				bitmap->channel_order == _custom_edition_channels_multipurpose ||
+				bitmap->channel_order == _custom_edition_channels_multipurpose_alpha_specular ?
+					"multipurpose map" :
+					"HUD meter");
 			*bitmap = globals->reordered_bitmaps[--globals->reordered_bitmap_count];
 			kept_count++;
 		}
 		else
 		{
-			if (bitmap->channel_order == _custom_edition_channels_multipurpose)
+			if (bitmap->channel_order == _custom_edition_channels_multipurpose ||
+				bitmap->channel_order == _custom_edition_channels_multipurpose_alpha_specular)
 			{
 				multipurpose_count++;
 			}
@@ -823,6 +878,34 @@ short custom_edition_bitmap_channel_order(
 		_custom_edition_channels_xbox;
 }
 
+short custom_edition_bitmap_pixels_channel_order(
+	struct bitmap_data const *bitmap,
+	void const *pixels,
+	short channel_order)
+{
+	unsigned short const *texels = pixels;
+	long count;
+
+	if (channel_order != _custom_edition_channels_multipurpose_alpha_specular)
+	{
+		return channel_order;
+	}
+	if (!pixels || bitmap->format != _bitmap_format_a4r4g4b4 || bitmap->pixels_size <= 0)
+	{
+		return _custom_edition_channels_multipurpose;
+	}
+	/* (A4R4G4B4: alpha in each texel's top four bits) */
+	for (count = bitmap->pixels_size / 2; count > 0; count--, texels++)
+	{
+		if (*texels & 0x0FFF)
+		{
+			return _custom_edition_channels_multipurpose;
+		}
+	}
+
+	return channel_order;
+}
+
 void custom_edition_bitmaps_dispose(
 	void)
 {
@@ -878,7 +961,8 @@ void custom_edition_bitmap_pixels_arrived(
 			halo_custom_edition_texels_channels(
 				pixels,
 				reordered_index != NONE ?
-					custom_edition_bitmaps_globals.reordered_bitmaps[reordered_index].channel_order :
+					(unsigned char)custom_edition_bitmap_pixels_channel_order(bitmap, pixels,
+						custom_edition_bitmaps_globals.reordered_bitmaps[reordered_index].channel_order) :
 					_custom_edition_channels_xbox);
 			/* on failure it logs, and the texture shows the pixels as read */
 			rasterizer_xbox_bitmap_rebuild_hardware_format(bitmap);

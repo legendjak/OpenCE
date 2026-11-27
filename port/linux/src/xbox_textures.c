@@ -848,6 +848,8 @@ static const unsigned char custom_edition_channel_sources[NUMBER_OF_CUSTOM_EDITI
 	{ 3, 3, 3, 0 },
 	/* Explicit Xbox-order HUD artwork must not be converted per draw. */
 	{ 0, 1, 2, 3 },
+	/* the specular mask from alpha, the others as Halo PC's multipurpose */
+	{ 3, 1, 3, 0 },
 };
 
 struct custom_edition_texels

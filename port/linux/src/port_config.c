@@ -330,6 +330,11 @@ static const struct config_setting config_settings[] =
 		"Draw Halo PC's multiplayer Shade's bolts as the Xbox's campaign Shade's\n"
 		"(its contrail, firing flashes, smoke and light); false: Gearbox's. Its\n"
 		"bolts fly and hurt as Halo PC's either way." },
+	{ "display.e3_fuel_rod", _config_boolean, "true", "HALO_E3_FUEL_ROD", _environment_value, _platform_all,
+		"Draw Halo PC's fuel rod gun in first person glossy purple, as Gearbox's\n"
+		"E3 2003 trailer shows it: its texture's reflection mask is used (Halo PC\n"
+		"leaves it unused, and the gun dark blue-grey). Read as a map loads;\n"
+		"false: Halo PC's." },
 	{ "display.structure_culling", _config_integer, "31", "HALO_STRUCTURE_CULLING", _environment_value,
 		_platform_all,
 		"Which tests skip the level's triangles the camera cannot see, as bits\n"

@@ -146,6 +146,15 @@ after a load), as their reviews asked.
   and hurt as Halo PC's (60 world units a second, the campaign's 25), so the
   trail is longer. Like the items, this picks tags by name, which the
   project's rules do not allow upstream.
+- Halo PC's fuel rod gun is glossy purple in first person, as Gearbox's E3
+  2003 trailer shows it (`display.e3_fuel_rod`, on). Its first-person
+  texture's masks have only a reflection mask, kept in the channel Halo PC
+  reads the color change mask from, so Halo PC draws the gun without the
+  Banshee's purple reflections and the detail its shader gives it: dark
+  blue-grey. Here that mask is read as the reflection mask, if the texture
+  is as Gearbox made it (one 16-bit bitmap, its color channels empty,
+  checked as it loads) (`port/linux/game/custom_edition_bitmaps.c`). This
+  picks a tag by name too.
 - Halo PC's six maps of its own (Ice Fields, Death Island, Danger Canyon,
   Infinity, Timberland, Gephyrophobia), found in `paths.custom_edition`'s
   maps, are listed under MULTIPLAYER after the Xbox's maps, with Halo PC's

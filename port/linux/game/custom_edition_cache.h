@@ -269,6 +269,14 @@ of bitmap `bitmap_index` of the tag `handle` names in, of those found. */
 short custom_edition_bitmap_channel_order(
 	long handle,
 	long bitmap_index);
+/* The order `bitmap`'s pixels, laid out as a Halo PC tag lays them out, are
+drawn in, of `channel_order` its tag's was found to be: a multipurpose map
+found to have its specular mask in alpha (display.e3_fuel_rod) whose color
+channels hold anything is drawn as other multipurpose maps are. */
+short custom_edition_bitmap_pixels_channel_order(
+	struct bitmap_data const *bitmap,
+	void const *pixels,
+	short channel_order);
 /* Whether the texture cache can draw `bitmap` from pixels laid out as a
 Halo PC tag lays them out (rasterizer_xbox_bitmap_rebuild_hardware_format
 makes them the hardware's): the game's bitmap_verify, a format with a
