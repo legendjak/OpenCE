@@ -7953,6 +7953,10 @@ struct gametype_option
 #define OPTIONS_FIELD(field) (short)offsetof(struct game_variant_options, field)
 #define TIME_LIMITS { 0, 10, 15, 20, 25, 30, 45 }
 
+/* the loadout spinners below have a value for each weapon (a label without
+one saved 0, no weapon) */
+typedef char loadout_weapon_spinner_values_assert[NUMBER_OF_LOADOUT_WEAPONS == 12 ? 1 : -1];
+
 static struct gametype_option const gametype_options[] =
 {
 	/* OPENCE OPTIONS (OpenCE's gametypes: game_modes.c) */
@@ -7988,12 +7992,13 @@ static struct gametype_option const gametype_options[] =
 	{ "item_options_starting_equipment_spinner", _option_flag, 0, FLAG(_game_variant_generic_starting_equipment_bit),
 		2, { 0, 1 } },
 	{ "map_weapons_spinner", _option_option_byte, OPTIONS_FIELD(no_map_weapons), 0, 2, { 0, 1 } },
-	/* (the loadout: the weapon set's, or each player's two weapons) */
+	/* (the loadout: the weapon set's, or each player's two weapons, a value
+	for each of its labels: game_engine.h's _loadout_weapon_*) */
 	{ "loadout_spinner", _option_option_byte, OPTIONS_FIELD(loadout), 0, 2, { _loadout_category, _loadout_custom } },
 	{ "primary_weapon_spinner", _option_option_byte, OPTIONS_FIELD(primary_weapon), 0, NUMBER_OF_LOADOUT_WEAPONS,
-		{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 } },
+		{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 } },
 	{ "secondary_weapon_spinner", _option_option_byte, OPTIONS_FIELD(secondary_weapon), 0, NUMBER_OF_LOADOUT_WEAPONS,
-		{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 } },
+		{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 } },
 	/* indicator options */
 	{ "indicator_options_radar display_spinner", _option_long, VARIANT_FIELD(universal_variant.goal_radar), 0, 3,
 		{ 0, 1, 2 } },
