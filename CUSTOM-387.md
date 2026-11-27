@@ -194,6 +194,11 @@ after a load), as their reviews asked.
   Halo PC or Custom Edition map, or one with Halo PC's items, as Halo PC
   draws them (MCC maps already were): the flamethrower's flames leave its
   nozzle in first person, rather than rising from the player's feet.
+- The MULTIPLAYER menu's picture (SERVER BROWSER and LAN showed a
+  placeholder) is red and blue Spartans with a flag, a picture its player
+  gave (`port/assets/menus/NON_HANDDRAWN.md`). The project ships only
+  hand-drawn redraws there, and `tools/ce_menus.py` writes the
+  placeholders again.
 - Text chat in public internet games a player hosts (listed in the server
   browser), as the host's TEXT CHAT says (`network.public_text_chat`, on).
   The main build keeps such games without chat, on the host and on every

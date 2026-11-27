@@ -41,6 +41,17 @@ picture of Gamepad Setup: the Xbox's Controller Setup's pictures of the button s
 | `main_menu/settings_select/player_setup/player_profile_edit/profile_options` | `ui\shell\main_menu\settings_select\player_setup\player_profile_edit\controller_edit\config_controller` frame 7 |
 | `main_menu/settings_select/player_setup/player_profile_edit/profile_options` | `ui\shell\main_menu\settings_select\player_setup\player_profile_edit\controller_edit\config_controller` frame 8 |
 
+## Given for this build (custom-387)
+
+A picture its player gave, a 3D render, not a redraw: the multiplayer menu's red and blue Spartans
+with a flag, in both frames the menu showed placeholders in (SERVER BROWSER and LAN), at 4x. It is
+this build's alone; `tools/ce_menus.py` writes placeholders there again.
+
+| File | Size | The PC version's picture |
+| --- | --- | --- |
+| `ce/shell/main_menu/multiplayer_type_select/mp_options__0.png` | 2048x1024 | `shell/main_menu/multiplayer_type_select/mp_options__0.png` |
+| `ce/shell/main_menu/multiplayer_type_select/mp_options__1.png` | 2048x1024 | `shell/main_menu/multiplayer_type_select/mp_options__1.png` |
+
 ## Placeholders, to be redrawn
 
 The Xbox's map has none of these (or other pictures under the name), so each frame is a placeholder
@@ -48,8 +59,6 @@ until it is redrawn.
 
 | File | Size | The PC version's picture |
 | --- | --- | --- |
-| `ce/shell/main_menu/multiplayer_type_select/mp_options__0.png` | 512x256 | `shell/main_menu/multiplayer_type_select/mp_options__0.png` |
-| `ce/shell/main_menu/multiplayer_type_select/mp_options__1.png` | 512x256 | `shell/main_menu/multiplayer_type_select/mp_options__1.png` |
 | `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__0.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__0.png` |
 | `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__3.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__3.png` |
 | `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__4.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__4.png` |
@@ -62,7 +71,7 @@ until it is redrawn.
 | `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__6.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__6.png` |
 | `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__8.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__8.png` |
 
-13 of 183 frames are placeholders.
+11 of 183 frames are placeholders.
 
 The PC version's `ui\gamespy` and `ui\ticker` fonts are drawn with `ui\small_ui`, which
 the Xbox's map has.
