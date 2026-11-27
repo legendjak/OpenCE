@@ -138,6 +138,12 @@ long director_get_followed_unit(
 	short local_player_index);
 director_perspective director_get_perspective(
 	short local_player_index);
+/* port: the view moving between first person and the camera following the
+unit, as a seat is got into or out of (port/linux/game/vehicle_camera.c) */
+boolean director_seat_camera_moving(
+	short local_player_index,
+	real *remaining,
+	boolean *to_first_person);
 short director_desired_perspective(
 	long unit_index,
 	director_perspective *perspective);

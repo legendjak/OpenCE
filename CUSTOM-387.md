@@ -146,6 +146,18 @@ after a load), as their reviews asked.
   and hurt as Halo PC's (60 world units a second, the campaign's 25), so the
   trail is longer. Like the items, this picks tags by name, which the
   project's rules do not allow upstream.
+- Getting into and out of a vehicle, the view goes over your head, not
+  through it (`display.vehicle_camera`, on). The game moves the view in a
+  line from your eyes to behind the vehicle and back: getting in, the
+  picture was the inside of your armor for a quarter of a second; getting
+  out, the back of your helmet filled it, and the view jumped the last
+  quarter of a world unit into your eyes. Now the view drawn is kept a
+  little over your body near it, so your body comes into the picture from
+  below as the view leaves it and goes out of it below as the view comes
+  back; coming back, it glides the last part into your eyes; and your body
+  is not drawn while the view is inside it
+  (`port/linux/game/vehicle_camera.c`). Only the picture changes: the
+  game's camera, which aim assistance and the sounds take, is as it was.
 - Halo PC's fuel rod gun is glossy purple in first person, as Gearbox's E3
   2003 trailer shows it (`display.e3_fuel_rod`, on). Its first-person
   texture's masks have only a reflection mask, kept in the channel Halo PC

@@ -355,6 +355,34 @@ director_perspective director_get_perspective(
 	return camera->perspective;
 }
 
+/* port: whether the view is moving between first person and the camera
+following the unit (director_choose_game_perspective interpolates the
+change: a seat got into or out of, or display.passenger_third_person), with
+the part of the move left (camera_change_pause, 1 to 0) and where it goes;
+for the picture drawn of it (port/linux/game/vehicle_camera.c) */
+boolean director_seat_camera_moving(
+	short local_player_index,
+	real *remaining,
+	boolean *to_first_person)
+{
+	struct director *director;
+
+	if (local_player_index < 0 || local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)
+		return FALSE;
+	director = director_get(local_player_index);
+	if (!(director->camera_change_pause > 0.f))
+		return FALSE;
+	if (director->camera_proc == (director_camera_update_proc)first_person_camera_update)
+		*to_first_person = TRUE;
+	else if (director->camera_proc == (director_camera_update_proc)following_camera_update)
+		*to_first_person = FALSE;
+	else
+		return FALSE;
+	*remaining = director->camera_change_pause;
+
+	return TRUE;
+}
+
 short director_desired_perspective(
 	long unit_index,
 	director_perspective *perspective)

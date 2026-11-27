@@ -112,6 +112,7 @@ symbols in this file:
 #include "saved games/game_state.h"
 #include "rasterizer/rasterizer_console_vars.h"
 #include "rasterizer/rasterizer_model_types.h"
+#include "vehicle_camera.h" /* port: port/linux/game/vehicle_camera.c */
 
 /* ---------- constants */
 
@@ -506,12 +507,17 @@ static void render_object_list(
 		and the overshield finds its own values by their address
 		(overshield_effect.c), so they are not copied again */
 		real const *shown_functions = object->object.outgoing_function_values;
+		/* port: nor the body of the player the view is moving out of or
+		into, getting into or out of a seat, while the view is inside it
+		(port/linux/game/vehicle_camera.c) */
+		boolean view_inside = !data->shadow && !render.camera.mirrored &&
+			vehicle_camera_hides(render.local_player_index, object_index);
 
 		/* port: and in the shadows' pass, the body of the player the view is
 		seen from, with what it carries, with display.first_person_shadow
 		(port/linux/game/first_person_shadow.c) */
-		if (!object_is_first_person_camera(object_index) || render.camera.mirrored || (legs && node_matrices) ||
-			(data->shadow && first_person_shadow_wanted(object_index)))
+		if ((!object_is_first_person_camera(object_index) && !view_inside) || render.camera.mirrored ||
+			(legs && node_matrices) || (data->shadow && first_person_shadow_wanted(object_index)))
 		{
 			struct render_model_effect model_effect;
 

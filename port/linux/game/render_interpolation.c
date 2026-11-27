@@ -57,6 +57,7 @@ tick, such as a nav marker, is moved as far as the object is drawn from there
 #include "render/render_cameras.h"
 #include "units/units.h"
 #include "vehicle_riding.h"
+#include "vehicle_camera.h"
 
 /* port/linux/src/port_config.c */
 int config_boolean(const char *name);
@@ -1002,8 +1003,10 @@ struct observer_result const *render_interpolation_camera(
 {
 	if (local_player_index < 0 || local_player_index >= MAXIMUM_LOCAL_PLAYERS)
 		return observer;
-	return render_interpolation_direct_camera(local_player_index,
-		render_interpolation_blended_camera(local_player_index, observer));
+	/* (and getting into or out of a seat, around the player's body:
+	vehicle_camera.c) */
+	return vehicle_camera_view(local_player_index, render_interpolation_direct_camera(local_player_index,
+		render_interpolation_blended_camera(local_player_index, observer)));
 }
 
 /* between two of the observer's results: the position, the axes (up kept
