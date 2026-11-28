@@ -73,6 +73,8 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 /* the import's own part of a map's version: a build that imports otherwise
 records another */
 #define GEARBOX_ITEMS_FORMAT 0x47425831UL
+/* and with Gearbox's changes to the map (gearbox_map_change_find) */
+#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435831UL
 
 #define MAP_PATH_SIZE 256
 
@@ -91,6 +93,8 @@ records another */
 /* what a Halo PC bitmap added beside the Xbox map's of its name is called */
 #define GEARBOX_OWN_NAME_SUFFIX GEARBOX_ITEMS_OWN_NAME_SUFFIX
 
+/* a scenery placement's bytes (tag_schema_scenario.c's) */
+#define SCENERY_PLACEMENT_BYTES 0x48
 /* a vehicle placement's bytes (tag_schema_scenario.c's unit_placement) */
 #define VEHICLE_PLACEMENT_BYTES 0x78
 
@@ -217,6 +221,9 @@ struct gearbox_import
 	/* for each of the Xbox map's tags: whether the items' tags alone use it
 	(gearbox_import_items_only) */
 	byte *items_only;
+	/* a donor bitmap (absolute index) added beside the Xbox map's of its name
+	however alike they are (Halo PC's structure bsp's lightmaps), or NONE */
+	long own_index;
 	boolean failed;
 };
 
@@ -644,9 +651,10 @@ static long gearbox_import_resolve(
 	Xbox map's tags keep theirs) */
 	if (map_tag != NONE && (unsigned long)donor->group_tag == GEARBOX_BITMAP_TAG && donor->base_address &&
 		!gearbox_items_own(name) && !import->items_only[map_tag] &&
-		!gearbox_bitmaps_alike(import, import->xbox_instances[map_tag].base_address,
-			custom_edition_cache_tag_get(import->donor_tags, import->donor_bytes, (unsigned long)donor->tag_index,
-				GEARBOX_BITMAP_TAG, sizeof(struct bitmap_group))))
+		(index == import->own_index ||
+			!gearbox_bitmaps_alike(import, import->xbox_instances[map_tag].base_address,
+				custom_edition_cache_tag_get(import->donor_tags, import->donor_bytes, (unsigned long)donor->tag_index,
+					GEARBOX_BITMAP_TAG, sizeof(struct bitmap_group)))))
 	{
 		char *own_name = gearbox_allocate((long)(strlen(name) + strlen(GEARBOX_OWN_NAME_SUFFIX) + 1));
 
@@ -1626,11 +1634,470 @@ static long gearbox_import_string_lists(
 	return replaced;
 }
 
+/* ---- Gearbox's changes to the Xbox's maps (game.gearbox_map_changes) */
+
+/* the scenery and netgame equipment placements Gearbox changed on a map: of
+the scenery (by its tag) and item collections listed, the Halo PC map's
+placements stand for the Xbox map's (none, where it has none), and with
+teleporters, its teleporters' netgame flags for the Xbox map's */
+struct gearbox_map_change
+{
+	/* the map (its file's name) */
+	char const *map_name;
+	char const *const *scenery;
+	char const *const *equipment;
+	boolean teleporters;
+	/* Halo PC's structure bsp (gearbox_map_bsp_read), and with it, the Xbox
+	map's scenery of these tags taken away and its decals: what Halo PC's
+	geometry has in their place */
+	boolean structure_bsp;
+	char const *const *bsp_scenery;
+	boolean bsp_no_decals;
+};
+
+/* the Halo PC map's placements an import takes for a map's changes (indices
+in its scenario's blocks) */
+struct gearbox_change_selection
+{
+	struct gearbox_map_change const *change;
+	long scenery[MAXIMUM_GEARBOX_PLACEMENTS];
+	long scenery_count;
+	long equipment[MAXIMUM_GEARBOX_PLACEMENTS];
+	long equipment_count;
+	long flags[MAXIMUM_GEARBOX_PLACEMENTS];
+	long flag_count;
+};
+
+/* Blood Gulch: its large shrub off the ground set on it, and another
+beside it. Battle Creek: the two ferns on the path set apart. Sidewinder: a
+teleporter in each base's room, where the Xbox's has a teleporter's pad,
+red and blue beacons at the bases' doors and the teleporters, and two of
+each power-up in the middle tunnel, where the Xbox's has one. */
+static char const *const gearbox_bloodgulch_scenery[] =
+{
+	"scenery\\shrubs\\shrub_large\\shrub_large",
+	NULL
+};
+static char const *const gearbox_beavercreek_scenery[] =
+{
+	"scenery\\plants\\plant fern\\plant fern",
+	NULL
+};
+static char const *const gearbox_sidewinder_scenery[] =
+{
+	"scenery\\teleporter_shield\\teleporter",
+	"scenery\\teleporter_base\\teleporter_base",
+	"levels\\test\\timberland\\scenery\\mp_beacon_blue\\mp_beacon_blue",
+	"levels\\test\\timberland\\scenery\\mp_beacon_red\\mp_beacon_red",
+	NULL
+};
+static char const *const gearbox_sidewinder_equipment[] =
+{
+	"item collections\\powerups\\powerup super shield",
+	"item collections\\powerups\\powerup invisibility",
+	NULL
+};
+
+/* Sidewinder's middle tunnel: the Xbox's thin pillar stood in a blast door's
+collision, which Halo PC's thick pillar has in its geometry */
+static char const *const gearbox_sidewinder_bsp_scenery[] =
+{
+	"levels\\a10\\devices\\doors\\door_blast_collision\\door_blast_collision",
+	NULL
+};
+
+/* (Halo PC's structure bsps: Blood Gulch's small cliff walkable,
+Battle Creek's windows lower, Sidewinder's pillars thick, its teleporters'
+rooms and the arrows to them, and its bases' stripes drawn on the walls,
+where the Xbox's are decals) */
+static struct gearbox_map_change const gearbox_map_changes[] =
+{
+	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE },
+	{ "beavercreek", gearbox_beavercreek_scenery, NULL, FALSE, TRUE, NULL, FALSE },
+	{ "sidewinder", gearbox_sidewinder_scenery, gearbox_sidewinder_equipment, TRUE, TRUE,
+		gearbox_sidewinder_bsp_scenery, TRUE },
+};
+
+/* Halo PC's structure bsp of a map Gearbox changed: read to its own place
+above the donor's tags, as a Halo PC map's is, its references made the grown
+table's (gearbox_map_bsp_read), and drawn and collided with in the Xbox
+map's place (scenario_structure_bsp_load, gearbox_items_structure_bsp) */
+static struct
+{
+	boolean loaded;
+	struct gearbox_structure_bsp_header *header;
+	unsigned long size;
+	boolean in_use;
+} gearbox_map_bsp;
+
+/* the changes Gearbox made to the map (its file's name), or NULL: none, or
+game.gearbox_map_changes off */
+static struct gearbox_map_change const *gearbox_map_change_find(
+	char const *map_name)
+{
+	char const *name = map_name ? tag_name_strip_path(map_name) : NULL;
+	short index;
+
+	if (!name || !config_boolean("game.gearbox_map_changes"))
+		return NULL;
+	for (index = 0; index < (short)NUMBEROF(gearbox_map_changes); index++)
+	{
+		if (!csstrcasecmp(gearbox_map_changes[index].map_name, name))
+			return &gearbox_map_changes[index];
+	}
+
+	return NULL;
+}
+
+/* whether the name is one of the list's (NULL: an empty list) */
+static boolean gearbox_name_listed(
+	char const *const *list,
+	char const *name)
+{
+	for (; list && *list; list++)
+	{
+		if (name && !csstrcasecmp(*list, name))
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+/* the name of the tag a handle of the map's table (the grown one, once it
+is in place) names, or NULL */
+static char const *gearbox_table_name(
+	long handle)
+{
+	struct cache_file_tag_instance const *instances;
+	long count, index;
+
+	if (handle == NONE)
+		return NULL;
+	instances = cache_files_tag_instances(&count);
+	index = DATUM_INDEX_TO_ABSOLUTE_INDEX(handle);
+
+	return instances && index >= 0 && index < count && instances[index].tag_index == handle ?
+		instances[index].name : NULL;
+}
+
+/* the name of the donor tag a handle of the donor's names, or NULL */
+static char const *gearbox_donor_name(
+	struct gearbox_import const *import,
+	long handle)
+{
+	long index = gearbox_import_donor_index((struct gearbox_import *)import, handle);
+
+	return index != NONE ? custom_edition_cache_tag_name(import->donor_tags, import->donor_bytes, index) : NULL;
+}
+
+/* the donor scenery placement's tag (absolute index), or NONE */
+static long gearbox_change_scenery_tag(
+	struct gearbox_import *import,
+	struct scenario *donor_scenario,
+	long placement_index)
+{
+	struct scenario_object_datum const *placement = gearbox_donor_element(import, &donor_scenario->scenery,
+		placement_index, SCENERY_PLACEMENT_BYTES);
+	struct scenario_object_palette_entry const *entry = placement ? gearbox_donor_element(import,
+		&donor_scenario->scenery_palette, placement->palette_entry_index, sizeof(*entry)) : NULL;
+
+	return entry ? gearbox_import_donor_index(import, entry->reference.index) : NONE;
+}
+
+/* The Halo PC map's placements of the map's changes chosen, before any
+reference is rewritten (they name the donor's tags): FALSE if there are more
+than room for. */
+static boolean gearbox_change_select(
+	struct gearbox_import *import,
+	struct scenario *donor_scenario,
+	struct gearbox_change_selection *selection)
+{
+	struct gearbox_map_change const *change = selection->change;
+	long index;
+
+	selection->scenery_count = 0;
+	selection->equipment_count = 0;
+	selection->flag_count = 0;
+	for (index = 0; index < donor_scenario->scenery.count; index++)
+	{
+		long tag = gearbox_change_scenery_tag(import, donor_scenario, index);
+
+		if (tag == NONE || !gearbox_name_listed(change->scenery,
+			custom_edition_cache_tag_name(import->donor_tags, import->donor_bytes, tag)))
+		{
+			continue;
+		}
+		if (selection->scenery_count >= MAXIMUM_GEARBOX_PLACEMENTS)
+			return FALSE;
+		selection->scenery[selection->scenery_count++] = index;
+	}
+	for (index = 0; index < donor_scenario->netgame_equipment.count; index++)
+	{
+		struct scenario_netgame_equipment const *placement = gearbox_donor_element(import,
+			&donor_scenario->netgame_equipment, index, sizeof(*placement));
+
+		if (!placement || !gearbox_name_listed(change->equipment,
+			gearbox_donor_name(import, placement->item_collection.index)))
+		{
+			continue;
+		}
+		if (selection->equipment_count >= MAXIMUM_GEARBOX_PLACEMENTS)
+			return FALSE;
+		selection->equipment[selection->equipment_count++] = index;
+	}
+	for (index = 0; change->teleporters && index < donor_scenario->netgame_flags.count; index++)
+	{
+		struct scenario_netgame_flag const *flag = gearbox_donor_element(import, &donor_scenario->netgame_flags,
+			index, sizeof(*flag));
+
+		if (!flag || (flag->type != _netgame_flag_teleporter_source && flag->type != _netgame_flag_teleporter_target))
+			continue;
+		if (selection->flag_count >= MAXIMUM_GEARBOX_PLACEMENTS)
+			return FALSE;
+		selection->flags[selection->flag_count++] = index;
+	}
+
+	return TRUE;
+}
+
+/* the chosen placements' tags imported (with those they name) */
+static void gearbox_change_resolve(
+	struct gearbox_import *import,
+	struct scenario *donor_scenario,
+	struct gearbox_change_selection const *selection)
+{
+	long index;
+
+	for (index = 0; index < selection->scenery_count; index++)
+	{
+		long tag = gearbox_change_scenery_tag(import, donor_scenario, selection->scenery[index]);
+
+		if (tag != NONE)
+			gearbox_import_resolve(import, tag);
+	}
+	for (index = 0; index < selection->equipment_count; index++)
+	{
+		struct scenario_netgame_equipment const *placement = gearbox_donor_element(import,
+			&donor_scenario->netgame_equipment, selection->equipment[index], sizeof(*placement));
+		long collection = gearbox_import_donor_index(import, placement->item_collection.index);
+
+		if (collection != NONE)
+			gearbox_import_resolve(import, collection);
+	}
+
+	return;
+}
+
+/* Halo PC's structure bsp of the map, read from its file at `path` to its own
+place, its references rewritten as the donor tags' are (before the grown
+table is made: the tags it names are added to it). FALSE (the Xbox map's is
+kept) if it cannot be: not one bsp, not above the donor's tags, damaged. */
+static boolean gearbox_map_bsp_read(
+	struct gearbox_import *import,
+	char const *path,
+	struct scenario *donor_scenario)
+{
+	struct scenario_structure_bsp_reference const *reference = donor_scenario->structure_bsp_references.count == 1 ?
+		gearbox_donor_element(import, &donor_scenario->structure_bsp_references, 0, sizeof(*reference)) : NULL;
+	struct gearbox_structure_bsp_header *header;
+	struct structure_bsp *structure_bsp;
+	unsigned long base, size, lowest, top = CUSTOM_EDITION_TAG_CACHE_ADDRESS + CUSTOM_EDITION_TAG_CACHE_BYTES;
+	char const *failure = NULL;
+	FILE *stream;
+
+	memset(&gearbox_map_bsp, 0, sizeof(gearbox_map_bsp));
+	if (!reference)
+	{
+		error(_error_silent, "gearbox items: the Xbox map's structure bsp is kept: the Halo PC map has not one");
+		return FALSE;
+	}
+	base = (unsigned long)reference->base_address;
+	size = (unsigned long)reference->file_size;
+	lowest = CUSTOM_EDITION_TAG_CACHE_ADDRESS + import->donor_bytes;
+	if (reference->file_offset < 0 || reference->file_size < (long)sizeof(*header) ||
+		size > GEARBOX_MAXIMUM_STRUCTURE_BSP_BYTES || base < lowest || base > top || size > top - base)
+	{
+		error(_error_silent, "gearbox items: the Xbox map's structure bsp is kept: Halo PC's (%08lx bytes at %08lx) is not above its tags",
+			size, base);
+		return FALSE;
+	}
+	stream = fopen(path, "rb");
+	if (!stream || fseek(stream, reference->file_offset, SEEK_SET) || fread((void *)base, 1, size, stream) != size)
+		failure = "it cannot be read";
+	if (stream)
+		fclose(stream);
+	header = (struct gearbox_structure_bsp_header *)base;
+	if (!failure && (header->signature != GEARBOX_STRUCTURE_BSP_SIGNATURE || header->vertex_buffer_count ||
+		header->index_buffer_count || header->base_address < base + sizeof(*header) || header->base_address > base + size ||
+		sizeof(struct structure_bsp) > base + size - header->base_address))
+	{
+		failure = "its header is not one";
+	}
+	if (!failure)
+	{
+		structure_bsp = (struct structure_bsp *)header->base_address;
+		/* (its lightmaps go with its geometry, whatever the Xbox map's of their
+		name are like) */
+		import->own_index = gearbox_import_donor_index(import, structure_bsp->lightmap_group.index);
+		if (!tag_validate_references_walk(GEARBOX_STRUCTURE_BSP_TAG, structure_bsp, (void const *)base, size,
+			gearbox_import_visit, import))
+		{
+			failure = "its references cannot be followed";
+		}
+	}
+	if (failure)
+	{
+		error(_error_silent, "gearbox items: the Xbox map's structure bsp is kept: Halo PC's %s ('%s')", failure, path);
+		return FALSE;
+	}
+	gearbox_map_bsp.header = header;
+	gearbox_map_bsp.size = size;
+	gearbox_map_bsp.loaded = TRUE;
+	error(_error_silent, "gearbox items: Halo PC's structure bsp of the map read (%08lx bytes at %08lx)", size, base);
+
+	return TRUE;
+}
+
+/* The map's changes made to its scenario, once the grown table is in place:
+its scenery, netgame equipment and teleporters' flags of those listed the
+Halo PC map's. FALSE (nothing changed) if there is no room for them. */
+static boolean gearbox_change_apply(
+	struct gearbox_import *import,
+	struct scenario *donor_scenario,
+	struct scenario *scenario,
+	struct gearbox_change_selection const *selection)
+{
+	struct gearbox_map_change const *change = selection->change;
+	long palette_count = scenario->scenery_palette.count;
+	long scenery_kept = 0, equipment_kept = 0, flags_kept = 0, removed = 0;
+	struct scenario_object_palette_entry *palette;
+	byte *scenery;
+	struct scenario_netgame_equipment *equipment;
+	struct scenario_netgame_flag *flags;
+	long index, count;
+
+	palette = gearbox_allocate((scenario->scenery_palette.count + selection->scenery_count) * sizeof(*palette));
+	scenery = gearbox_allocate((scenario->scenery.count + selection->scenery_count) * SCENERY_PLACEMENT_BYTES);
+	equipment = gearbox_allocate((scenario->netgame_equipment.count + selection->equipment_count) * sizeof(*equipment));
+	flags = gearbox_allocate((scenario->netgame_flags.count + selection->flag_count) * sizeof(*flags));
+	if (!palette || !scenery || !equipment || !flags || gearbox_items_globals.patch_count + 5 > MAXIMUM_GEARBOX_PATCHES)
+	{
+		error(_error_silent, "gearbox items: out of memory for Gearbox's changes to '%s'", change->map_name);
+		return FALSE;
+	}
+
+	/* the scenery: the Xbox map's of the tags not listed, and Halo PC's,
+	each of its tags given a palette entry if it has none */
+	if (scenario->scenery_palette.count > 0)
+		memcpy(palette, scenario->scenery_palette.address, scenario->scenery_palette.count * sizeof(*palette));
+	for (index = 0; index < scenario->scenery.count; index++)
+	{
+		struct scenario_object_datum const *placement = (struct scenario_object_datum const *)
+			((byte const *)scenario->scenery.address + index * SCENERY_PLACEMENT_BYTES);
+		short entry = placement->palette_entry_index;
+
+		if (entry >= 0 && entry < scenario->scenery_palette.count &&
+			(gearbox_name_listed(change->scenery, gearbox_table_name(palette[entry].reference.index)) ||
+				(gearbox_map_bsp.loaded &&
+					gearbox_name_listed(change->bsp_scenery, gearbox_table_name(palette[entry].reference.index)))))
+		{
+			removed++;
+			continue;
+		}
+		memcpy(scenery + scenery_kept++ * SCENERY_PLACEMENT_BYTES, placement, SCENERY_PLACEMENT_BYTES);
+	}
+	count = scenery_kept;
+	for (index = 0; index < selection->scenery_count; index++)
+	{
+		struct scenario_object_datum *placement = (struct scenario_object_datum *)(scenery + count * SCENERY_PLACEMENT_BYTES);
+		long tag = gearbox_change_scenery_tag(import, donor_scenario, selection->scenery[index]);
+		long handle = tag != NONE ? gearbox_import_resolve(import, tag) : NONE;
+		long entry;
+
+		if (handle == NONE)
+			continue;
+		for (entry = 0; entry < palette_count && palette[entry].reference.index != handle; entry++)
+			;
+		if (entry == palette_count)
+		{
+			memset(&palette[entry], 0, sizeof(palette[entry]));
+			palette[entry].reference.group_tag = 'scen';
+			palette[entry].reference.name = (char *)custom_edition_cache_tag_name(import->donor_tags,
+				import->donor_bytes, tag);
+			palette[entry].reference.name_length = (long)strlen(palette[entry].reference.name);
+			palette[entry].reference.index = handle;
+			palette_count++;
+		}
+		memcpy(placement, gearbox_donor_element(import, &donor_scenario->scenery, selection->scenery[index],
+			SCENERY_PLACEMENT_BYTES), SCENERY_PLACEMENT_BYTES);
+		placement->palette_entry_index = (short)entry;
+		/* (the Halo PC map's object names are not the Xbox map's) */
+		placement->name_index = NONE;
+		count++;
+	}
+	gearbox_block_replace(&scenario->scenery_palette, palette_count, palette);
+	gearbox_block_replace(&scenario->scenery, count, scenery);
+
+	/* the netgame equipment: the Xbox map's of the item collections not
+	listed (the items' among them), and Halo PC's */
+	for (index = 0; index < scenario->netgame_equipment.count; index++)
+	{
+		struct scenario_netgame_equipment const *placement =
+			(struct scenario_netgame_equipment const *)scenario->netgame_equipment.address + index;
+
+		if (!gearbox_name_listed(change->equipment, gearbox_table_name(placement->item_collection.index)))
+			equipment[equipment_kept++] = *placement;
+	}
+	count = equipment_kept;
+	for (index = 0; index < selection->equipment_count; index++)
+	{
+		struct scenario_netgame_equipment const *source = gearbox_donor_element(import,
+			&donor_scenario->netgame_equipment, selection->equipment[index], sizeof(*source));
+		long collection = gearbox_import_donor_index(import, source->item_collection.index);
+
+		equipment[count] = *source;
+		equipment[count].run_time_spawned_item_index = NONE;
+		equipment[count].item_collection.index = collection != NONE ? gearbox_import_resolve(import, collection) : NONE;
+		count++;
+	}
+	if (change->equipment)
+		gearbox_block_replace(&scenario->netgame_equipment, count, equipment);
+
+	/* the teleporters' flags */
+	if (change->teleporters)
+	{
+		for (index = 0; index < scenario->netgame_flags.count; index++)
+		{
+			struct scenario_netgame_flag const *flag = (struct scenario_netgame_flag const *)scenario->netgame_flags.address + index;
+
+			if (flag->type != _netgame_flag_teleporter_source && flag->type != _netgame_flag_teleporter_target)
+				flags[flags_kept++] = *flag;
+		}
+		count = flags_kept;
+		for (index = 0; index < selection->flag_count; index++)
+		{
+			flags[count++] = *(struct scenario_netgame_flag const *)gearbox_donor_element(import,
+				&donor_scenario->netgame_flags, selection->flags[index], sizeof(*flags));
+		}
+		gearbox_block_replace(&scenario->netgame_flags, count, flags);
+	}
+	if (gearbox_map_bsp.loaded && change->bsp_no_decals)
+		gearbox_block_replace(&scenario->decals, 0, NULL);
+	error(_error_silent,
+		"gearbox items: Gearbox's changes to '%s': %ld scenery placed (%ld of the map's taken away), %ld netgame equipment (%ld of the map's kept), %ld teleporters' flags",
+		change->map_name, selection->scenery_count, removed, selection->equipment_count, equipment_kept,
+		selection->flag_count);
+
+	return TRUE;
+}
+
 /* the items taken from the donor loaded into the Xbox map's tags and its
-scenario `scenario`; FALSE (nothing of them taken) if they cannot be */
+scenario `scenario`, and Gearbox's changes to the map (its file's name
+`map_name`); FALSE (nothing of them taken) if they cannot be */
 static boolean gearbox_import(
 	struct gearbox_tag_header *donor_header,
-	struct scenario *scenario)
+	struct scenario *scenario,
+	char const *map_name)
 {
 	struct gearbox_import import;
 	struct scenario *donor_scenario;
@@ -1641,8 +2108,11 @@ static boolean gearbox_import(
 	long index, xbox_count;
 	short root;
 	boolean success = FALSE;
+	static struct gearbox_change_selection selection;
 
 	memset(&import, 0, sizeof(import));
+	import.own_index = NONE;
+	selection.change = gearbox_map_change_find(map_name);
 	import.donor_tags = custom_edition_cache_donor_tags(&import.donor_bytes);
 	import.xbox_instances = cache_files_tag_instances(&xbox_count);
 	import.xbox_count = xbox_count;
@@ -1706,6 +2176,13 @@ static boolean gearbox_import(
 		}
 	}
 
+	if (selection.change && donor_scenario && !gearbox_change_select(&import, donor_scenario, &selection))
+	{
+		error(_error_silent, "gearbox items: Gearbox's changes to '%s' have more placements than room for",
+			selection.change->map_name);
+		selection.change = NULL;
+	}
+
 	/* their tags, and those they name; and Halo PC's HUD messaging icons, of
 	which the fuel rod gun's is one (gearbox_items_messaging_icons) */
 	for (root = 0; root < NUMBER_OF_GEARBOX_ROOTS; root++)
@@ -1732,6 +2209,14 @@ static boolean gearbox_import(
 
 		gearbox_import_resolve(&import, gearbox_import_donor_index(&import, placement->item_collection.index));
 	}
+	if (selection.change)
+	{
+		char path[MAP_PATH_SIZE];
+
+		gearbox_change_resolve(&import, donor_scenario, &selection);
+		if (selection.change->structure_bsp && gearbox_items_donor_path(map_name, path))
+			gearbox_map_bsp_read(&import, path, donor_scenario);
+	}
 	gearbox_import_rewrite(&import);
 	if (!import.failed && gearbox_import_table(&import))
 	{
@@ -1742,6 +2227,8 @@ static boolean gearbox_import(
 
 			/* (without them the weapons are placed, but not held) */
 			gearbox_import_grafts(&import);
+			if (selection.change)
+				gearbox_change_apply(&import, donor_scenario, scenario, &selection);
 			gearbox_items_globals.extended_string_lists = gearbox_import_string_lists(&import);
 			for (index = 0; index < import.donor_count; index++)
 			{
@@ -1799,6 +2286,9 @@ unsigned long gearbox_items_map_version(
 		return 0;
 	}
 	version = (unsigned long)identity.checksum ^ GEARBOX_ITEMS_FORMAT;
+	/* (and with Gearbox's changes to the map, another) */
+	if (gearbox_map_change_find(name))
+		version ^= GEARBOX_MAP_CHANGES_FORMAT;
 
 	return version ? version : 1;
 }
@@ -1856,7 +2346,7 @@ void gearbox_items_tags_loaded(
 		error(_error_silent, "gearbox items: not added to '%s': '%s' cannot be loaded", map_name, path);
 		return;
 	}
-	if (!gearbox_import(donor, scenario))
+	if (!gearbox_import(donor, scenario, map_name))
 	{
 		error(_error_silent, "gearbox items: not added to '%s'", map_name);
 		gearbox_patches_undo();
@@ -1896,6 +2386,8 @@ void gearbox_items_tags_unloaded(
 	free(gearbox_items_globals.instances);
 	free(gearbox_items_globals.donor_handles);
 	custom_edition_cache_donor_unload();
+	/* (Halo PC's structure bsp was in the donor's tag cache) */
+	memset(&gearbox_map_bsp, 0, sizeof(gearbox_map_bsp));
 	if (gearbox_barriers.data)
 		free(gearbox_barriers.data);
 	memset(&gearbox_barriers, 0, sizeof(gearbox_barriers));
@@ -1910,6 +2402,28 @@ boolean gearbox_items_loaded(
 	void)
 {
 	return gearbox_items_globals.loaded;
+}
+
+void *gearbox_items_structure_bsp(
+	unsigned long *size)
+{
+	if (!gearbox_items_globals.loaded || !gearbox_map_bsp.loaded)
+		return NULL;
+	if (size)
+		*size = gearbox_map_bsp.size;
+	gearbox_map_bsp.in_use = TRUE;
+
+	return gearbox_map_bsp.header;
+}
+
+boolean gearbox_items_structure_bsp_release(
+	void)
+{
+	boolean in_use = gearbox_map_bsp.in_use;
+
+	gearbox_map_bsp.in_use = FALSE;
+
+	return in_use;
 }
 
 long gearbox_items_weapon(

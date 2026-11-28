@@ -71,4 +71,13 @@ boolean gearbox_items_read(
 	long size,
 	void *buffer);
 
+/* With Gearbox's changes to the Xbox map loaded (game.gearbox_map_changes),
+Halo PC's structure bsp of it, its references made the map's, to be loaded in
+place of the map's own (its header, and its size), or NULL; noted as in use
+until released, which says whether it was. */
+void *gearbox_items_structure_bsp(
+	unsigned long *size);
+boolean gearbox_items_structure_bsp_release(
+	void);
+
 #endif

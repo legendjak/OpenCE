@@ -118,6 +118,26 @@ after a load), as their reviews asked.
   words, and Halo PC's maps' "ESCAPE = Quit    ENTER = Continue" shows the
   buttons unless the keyboard's prompts are on; the line is moved left when
   it would run off the edge.
+- Gearbox's changes to Blood Gulch, Battle Creek and Sidewinder are made to
+  the Xbox's maps (`game.gearbox_map_changes`, on, with the items): the
+  Halo PC map's structure BSP is read beside them, at its own address above
+  the Halo PC map's tags as a Halo PC map's is, its references made the
+  Xbox map's tags of their names (Halo PC's added where the Xbox map has
+  none, its lightmaps always), and loaded in place of the Xbox map's. So
+  Battle Creek's side windows are smaller and cannot be jumped through, a
+  small cliff on Blood Gulch that could not be walked up can be, and
+  Sidewinder has thick pillars in its middle tunnel, rooms for teleporters
+  with arrows to
+  them, and its stripes in its geometry, where the Xbox's are decals (taken
+  away, with the blast door's collision its thin pillar stood in). And some
+  of the Halo PC map's placements stand for the Xbox map's: Blood Gulch's
+  shrub that floated set on the ground and another beside it, Battle
+  Creek's ferns set apart off the path, Sidewinder's teleporters in its
+  bases (with their flags), red and blue beacons, and two of each power-up
+  in the middle tunnel. The map's version says whether it has them. This
+  changes three maps by name, and takes tags and a BSP from another map,
+  which the project's rules do not allow upstream
+  (`port/linux/game/gearbox_items.c`).
 - Halo PC's crosshair warnings ("Reload", the rocket warthog's dots) are drawn
   with the Xbox's high-res texture: the sheets are laid out alike.
 - Fixed the far half of a map flickering out and in while moving (Halo PC's

@@ -1622,6 +1622,32 @@ boolean scenario_structure_bsp_load(
 		return TRUE;
 	}
 
+	/* port: with Gearbox's changes to an Xbox map, Halo PC's structure bsp of
+	it, already read above the Halo PC map's tags beside it, its references
+	made the map's (port/linux/game/gearbox_items.c), and its vertices
+	compressed as a Halo PC map's are */
+	{
+		extern void *gearbox_items_structure_bsp(unsigned long *size);
+		extern boolean gearbox_items_structure_bsp_release(void);
+		unsigned long gearbox_size;
+		struct cache_file_structure_bsp_header *gearbox_header = gearbox_items_structure_bsp(&gearbox_size);
+
+		if (gearbox_header)
+		{
+			if (!cache_file_structure_bsp_tag_valid(reference) ||
+				!custom_edition_structure_bsp_load(gearbox_header->base_address))
+			{
+				gearbox_items_structure_bsp_release();
+				return FALSE;
+			}
+			cache_file_globals.structure_bsp_header = gearbox_header;
+			structure_bsp_header_register_vertex_buffers(gearbox_header);
+			tag_instance = cache_get_tag_instance(reference->structure_bsp.index);
+			tag_instance->base_address = gearbox_header->base_address;
+			return TRUE;
+		}
+	}
+
 	/* port: the tag data's size was checked as the map loaded
 	(cache_file_header_verify); the bsp's reference is the map's, and is
 	checked before anything is read where it says (a Custom Edition map's
@@ -1780,9 +1806,14 @@ void scenario_structure_bsp_unload(
 #endif
 	structure_bsp_header_deregister_vertex_buffers(cache_file_globals.structure_bsp_header);
 	/* port: the buffers a Halo Custom Edition bsp was given
-	(port/linux/game/custom_edition_geometry.c) */
-	if (custom_edition_cache_tags_loaded())
-		custom_edition_structure_bsp_unload();
+	(port/linux/game/custom_edition_geometry.c), or Halo PC's bsp of an Xbox
+	map Gearbox changed (port/linux/game/gearbox_items.c) */
+	{
+		extern boolean gearbox_items_structure_bsp_release(void);
+
+		if (gearbox_items_structure_bsp_release() || custom_edition_cache_tags_loaded())
+			custom_edition_structure_bsp_unload();
+	}
 	tag_instance = cache_get_tag_instance(reference->structure_bsp.index);
 	match_assert(
 		"c:\\halo\\SOURCE\\cache\\cache_files.c",
