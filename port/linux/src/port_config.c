@@ -345,10 +345,11 @@ static const struct config_setting config_settings[] =
 		"and Sidewinder, taken from the Halo PC map of the same name: the level\n"
 		"geometry of Battle Creek (smaller side windows) and Blood Gulch (a\n"
 		"small cliff walkable), Blood Gulch's shrub set on the ground and another,\n"
-		"Sidewinder's teleporters in its bases, arrows on the floor to them,\n"
-		"beacons and two of each power-up; and on Blood Gulch and Sidewinder a\n"
-		"Banshee flies no higher than its view stays below the walls. Every machine\n"
-		"of a network game needs the same; false: the Xbox's maps as they are." },
+		"Sidewinder's teleporters in its bases, their frames and arrows on the\n"
+		"floor to them, beacons and two of each power-up; and on Blood Gulch and\n"
+		"Sidewinder a Banshee flies no higher than its view stays below the walls\n"
+		"(on Sidewinder, as high as a base's upper floor). Every machine of a\n"
+		"network game needs the same; false: the Xbox's maps as they are." },
 	{ "display.e3_fuel_rod", _config_boolean, "true", "HALO_E3_FUEL_ROD", _environment_value, _platform_all,
 		"Draw Halo PC's fuel rod gun in first person glossy purple, as Gearbox's\n"
 		"E3 2003 trailer shows it: its texture's reflection mask is used (Halo PC\n"

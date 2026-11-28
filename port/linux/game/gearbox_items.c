@@ -64,11 +64,14 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 #include "physics/collision_bsp_definitions.h"
 #include "effects/decal_definitions.h"
 #include "structures/structures.h"
+#include "rasterizer/rasterizer_geometry.h"
+#include "render/render.h"
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <xtl.h>
 
 /* ---------- constants */
 
@@ -77,8 +80,8 @@ records another */
 #define GEARBOX_ITEMS_FORMAT 0x47425831UL
 /* and with Gearbox's changes to the map (gearbox_map_change_find; 2: with
 Sidewinder's arrows, whose decals' tags are added to the table; 3: and the
-Banshee's flying ceilings) */
-#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435833UL
+Banshee's flying ceilings; 4: Sidewinder's at 1) */
+#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435834UL
 
 #define MAP_PATH_SIZE 256
 
@@ -309,6 +312,8 @@ static struct
 	/* the map's flying ceiling (gearbox_map_change), if it has one */
 	boolean has_flying_ceiling;
 	real flying_ceiling;
+	/* and Halo PC's teleporter frames to draw on it, or NULL */
+	struct gearbox_map_frames const *frames;
 } gearbox_items_globals;
 
 /* the items' Banshees, each where it last was inside the map
@@ -337,6 +342,12 @@ static struct
 	byte *data;
 	struct collision_bsp bsp;
 	long barrier_surfaces;
+	/* (the bsp's address and size, its structure bsp, and the donor its tags
+	are: the teleporters' frames are drawn from it) */
+	unsigned long base;
+	unsigned long size;
+	struct structure_bsp const *structure_bsp;
+	struct gearbox_tag_header const *donor;
 } gearbox_barriers;
 
 /* (collision_bsp.c's: a leaf, a bsp2d reference, and a surface's flag) */
@@ -1678,6 +1689,20 @@ struct gearbox_map_arrows
 	short count;
 };
 
+/* the frames Gearbox built around teleporters in Halo PC's structure bsp
+that the Xbox map's has not: its triangles of their shaders near the
+teleporters (gearbox_frames_build) */
+struct gearbox_map_frames
+{
+	char const *const *shaders;
+	short shader_count;
+	/* (across, from a teleporter to a triangle's middle) */
+	real radius;
+	/* the teleporters, on their floor */
+	real_point3d const *teleporters;
+	short count;
+};
+
 /* the scenery and netgame equipment placements Gearbox changed on a map: of
 the scenery (by its tag) and item collections listed, the Halo PC map's
 placements stand for the Xbox map's (none, where it has none), and with
@@ -1697,6 +1722,8 @@ struct gearbox_map_change
 	boolean bsp_no_decals;
 	/* with the Xbox map's structure bsp, Halo PC's arrows on it, or NULL */
 	struct gearbox_map_arrows const *arrows;
+	/* and Halo PC's teleporter frames (gearbox_frames_build), or NULL */
+	struct gearbox_map_frames const *frames;
 	/* with a flying ceiling, the highest a Banshee flies (its origin): its
 	camera is then below the lowest of the walls around the map, which hide
 	all outside it */
@@ -1773,29 +1800,56 @@ static struct gearbox_map_arrows const gearbox_sidewinder_arrows =
 	(short)NUMBEROF(gearbox_sidewinder_arrow_list)
 };
 
+/* Sidewinder's teleporters to the bases, which Gearbox moved into rooms of
+their own and framed: a doorway of two columns and a lintel, and a green
+light behind the field */
+static char const *const gearbox_sidewinder_frame_shaders[] =
+{
+	"levels\\b30\\shaders\\metal flat generic",
+	"levels\\b30\\shaders\\metal strips wide",
+	"levels\\test\\sidewinder\\shaders\\greenlight",
+};
+static real_point3d const gearbox_sidewinder_frame_teleporters[] =
+{
+	{ -52.34f, 22.49f, 0.17f },
+	{ 52.01f, 22.71f, 0.17f },
+};
+static struct gearbox_map_frames const gearbox_sidewinder_frames =
+{
+	gearbox_sidewinder_frame_shaders,
+	(short)NUMBEROF(gearbox_sidewinder_frame_shaders),
+	1.6f,
+	gearbox_sidewinder_frame_teleporters,
+	(short)NUMBEROF(gearbox_sidewinder_frame_teleporters)
+};
+
 /* (Halo PC's structure bsps: Blood Gulch's small cliff walkable, Battle
 Creek's side windows smaller. The flying ceilings: Blood Gulch's walls hide
 what is outside it from eyes below 13.4 world units, at their lowest at the
 red base's end, and Sidewinder's from eyes below 3.3, at the east wall
 beside the blue Banshee's place. A Banshee's camera is at most 2.45 above
 it while the top of its view is level or above (looking 28 degrees down, by
-its camera track), and lower looking further down; so each ceiling is 2.75
-below the walls. Gearbox's own ceilings, 11 and 1, pushed a Banshee down
-only a little, so that one climbing hard flew well above them.) */
+its camera track), and lower looking further down; so Blood Gulch's ceiling
+is 2.75 below the walls. Sidewinder's is 1, as Gearbox's is, for a Banshee
+(its spheres 0.08 below its origin) to rise to a base's upper floor (0.56):
+its camera can then be 0.12 above the walls' lowest place. Gearbox's
+ceilings, 11 and 1, pushed a Banshee down only a little, so that one
+climbing hard flew well above them.) */
 static struct gearbox_map_change const gearbox_map_changes[] =
 {
-	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE, NULL, TRUE, 10.5f },
-	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE, NULL, FALSE, 0.0f },
+	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE, NULL, NULL, TRUE, 10.5f },
+	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE, NULL, NULL, FALSE, 0.0f },
 	/* (Sidewinder's own structure bsp: Halo PC's has its thick pillars,
 	teleporter rooms and arrows, but not the Xbox's lightmaps' shadows of its
 	trees and cliffs; its arrows are drawn on the Xbox's) */
 	{ "sidewinder", gearbox_sidewinder_scenery, gearbox_sidewinder_equipment, TRUE, FALSE,
-		gearbox_sidewinder_bsp_scenery, TRUE, &gearbox_sidewinder_arrows, TRUE, 0.5f },
+		gearbox_sidewinder_bsp_scenery, TRUE, &gearbox_sidewinder_arrows, &gearbox_sidewinder_frames, TRUE, 1.0f },
 };
 
 /* (how far below its flying ceiling a map's structure bsp starts pushing a
-Banshee down, as Gearbox's ceilings do: it slows before it is held) */
-#define GEARBOX_SOFT_CEILING_DEPTH 1.0f
+Banshee down, as Gearbox's ceilings do: it slows before it is held, and
+climbing still reaches it) */
+#define GEARBOX_SOFT_CEILING_DEPTH 0.5f
 
 /* (decals.c's decal definition: the fields an arrow's sets) */
 struct gearbox_decal_definition
@@ -2118,6 +2172,807 @@ static void gearbox_change_arrows_apply(
 		gearbox_map_arrows.palette_indices[arrow_index] = made != NONE ? (short)(count + made) : NONE;
 	}
 	gearbox_block_replace(&scenario->decal_palette, count + import->made_count, palette);
+
+	return;
+}
+
+/* ---- Sidewinder's teleporter frames (gearbox_map_frames) */
+
+/* Halo PC's triangles taken for the frames, the Xbox map's near them, and
+the materials made of them */
+#define MAXIMUM_GEARBOX_FRAME_TRIANGLES 256
+#define MAXIMUM_GEARBOX_FRAME_NEARBY 2048
+#define MAXIMUM_GEARBOX_FRAME_GROUPS 16
+#define MAXIMUM_GEARBOX_FRAMES 8
+/* (a triangle with a corner this far above a teleporter's floor rises above
+it; one whose corners are all this near the Xbox map's surfaces lies on
+them; and the Xbox map's surfaces this much further than the frames' are
+the room's) */
+#define GEARBOX_FRAME_FLOOR 0.08f
+#define GEARBOX_FRAME_ON_SURFACE 0.01f
+#define GEARBOX_FRAME_NEARBY 2.0f
+
+/* (rasterizer_geometry.c's uncompressed vertices) */
+struct gearbox_environment_vertex
+{
+	real_point3d position;
+	real_vector3d normal;
+	real_vector3d binormal;
+	real_vector3d tangent;
+	real_point2d texcoord;
+};
+
+struct gearbox_lightmap_vertex
+{
+	real_vector3d incident_radiosity;
+	real_point2d texcoord;
+};
+
+/* (structure_visibility.c's cluster and subcluster) */
+struct gearbox_cluster_view
+{
+	byte unused[0x34];
+	struct tag_block subclusters;
+	byte unused40[0x28];
+};
+
+struct gearbox_subcluster
+{
+	real_rectangle3d world_bounds;
+	struct tag_block surface_indices;
+};
+
+typedef char verify_gearbox_environment_vertex_size[sizeof(struct gearbox_environment_vertex) == 56 ? 1 : -1];
+typedef char verify_gearbox_lightmap_vertex_size[sizeof(struct gearbox_lightmap_vertex) == 20 ? 1 : -1];
+typedef char verify_gearbox_cluster_view_size[sizeof(struct gearbox_cluster_view) == 0x68 ? 1 : -1];
+typedef char verify_gearbox_subcluster_size[sizeof(struct gearbox_subcluster) == 0x24 ? 1 : -1];
+
+/* a triangle of Halo PC's frames taken (its frame and shader, and the
+incident light of its corners' lightmap vertices) */
+struct gearbox_frame_triangle
+{
+	short frame;
+	short shader;
+	struct gearbox_environment_vertex vertices[3];
+	real_vector3d incident[3];
+};
+
+/* a triangle of the Xbox map's near a frame: its lightmap (NONE: unlit) and
+its corners' lightmap places */
+struct gearbox_frame_nearby
+{
+	short frame;
+	short lightmap;
+	real_point3d corners[3];
+	real_point2d lightmap_texcoords[3];
+};
+
+/* what the frames were drawn with on the structure bsp loaded last: let go
+when another is loaded, or the map's tags go */
+static struct
+{
+	void *blocks;
+	byte *vertices;
+	boolean vertices_contiguous;
+	struct structure_material *materials;
+	short material_count;
+} gearbox_frames_made;
+
+static struct gearbox_frame_triangle gearbox_frame_triangles[MAXIMUM_GEARBOX_FRAME_TRIANGLES];
+static struct gearbox_frame_nearby gearbox_frames_nearby[MAXIMUM_GEARBOX_FRAME_NEARBY];
+static struct gearbox_environment_vertex gearbox_frame_vertices[3 * MAXIMUM_GEARBOX_FRAME_TRIANGLES];
+static struct gearbox_lightmap_vertex gearbox_frame_lightmap_vertices[3 * MAXIMUM_GEARBOX_FRAME_TRIANGLES];
+
+static void gearbox_frames_release(
+	void)
+{
+	short index;
+
+	for (index = 0; index < gearbox_frames_made.material_count; index++)
+	{
+		rasterizer_vertex_buffer_delete(&gearbox_frames_made.materials[index].vertices);
+		rasterizer_vertex_buffer_delete(&gearbox_frames_made.materials[index].lightmap_vertices);
+	}
+	if (gearbox_frames_made.vertices)
+	{
+		if (gearbox_frames_made.vertices_contiguous)
+			XPhysicalFree(gearbox_frames_made.vertices);
+		else
+			free(gearbox_frames_made.vertices);
+	}
+	if (gearbox_frames_made.blocks)
+		free(gearbox_frames_made.blocks);
+	memset(&gearbox_frames_made, 0, sizeof(gearbox_frames_made));
+
+	return;
+}
+
+/* `count` elements of `size` bytes at an address of Halo PC's structure bsp
+(gearbox_barriers), or NULL: not all of them were read */
+static void const *gearbox_pc_bsp_elements(
+	void const *address,
+	long count,
+	long size)
+{
+	unsigned long offset = (unsigned long)address - gearbox_barriers.base;
+
+	if (!gearbox_barriers.data || count < 0 || size <= 0 || (unsigned long)address < gearbox_barriers.base ||
+		offset > gearbox_barriers.size || (unsigned long)count > (gearbox_barriers.size - offset) / (unsigned long)size)
+	{
+		return NULL;
+	}
+
+	return gearbox_barriers.data + offset;
+}
+
+/* the name of the donor's tag a handle names, or NULL */
+static char const *gearbox_donor_handle_name(
+	long handle)
+{
+	unsigned long donor_bytes;
+	byte *donor_tags = custom_edition_cache_donor_tags(&donor_bytes);
+	struct gearbox_tag_header const *donor = gearbox_barriers.donor;
+	long index = DATUM_INDEX_TO_ABSOLUTE_INDEX(handle);
+
+	if (!donor_tags || !donor || handle == NONE || index >= donor->tag_count ||
+		donor->instances[index].tag_index != handle)
+	{
+		return NULL;
+	}
+
+	return custom_edition_cache_tag_name(donor_tags, donor_bytes, index);
+}
+
+/* the handle of the map's shader of the name (in the grown table), or NONE */
+static long gearbox_shader_handle(
+	char const *name)
+{
+	struct cache_file_tag_instance const *instances;
+	long count, index;
+
+	instances = cache_files_tag_instances(&count);
+	for (index = 0; instances && index < count; index++)
+	{
+		struct cache_file_tag_instance const *instance = &instances[index];
+
+		if (instance->name && instance->base_address && !csstrcasecmp(instance->name, name) &&
+			(instance->group_tag == (long)GEARBOX_SHADER_TAG || instance->parent_group_tags[0] == (long)GEARBOX_SHADER_TAG ||
+				instance->parent_group_tags[1] == (long)GEARBOX_SHADER_TAG))
+		{
+			return instance->tag_index;
+		}
+	}
+
+	return NONE;
+}
+
+/* the distance squared from `point` to the nearest point of the triangle,
+and its corners' weights that make that point */
+static real gearbox_triangle_nearest(
+	real_point3d const *point,
+	real_point3d const *corners,
+	real *weights)
+{
+	real const *a = corners[0].n, *b = corners[1].n, *c = corners[2].n, *p = point->n;
+	real ab[3], ac[3], ap[3], bp[3], cp[3];
+	real d1 = 0.0f, d2 = 0.0f, d3 = 0.0f, d4 = 0.0f, d5 = 0.0f, d6 = 0.0f;
+	real va, vb, vc, distance = 0.0f;
+	short k;
+
+	for (k = 0; k < 3; k++)
+	{
+		ab[k] = b[k] - a[k];
+		ac[k] = c[k] - a[k];
+		ap[k] = p[k] - a[k];
+		bp[k] = p[k] - b[k];
+		cp[k] = p[k] - c[k];
+	}
+	for (k = 0; k < 3; k++)
+	{
+		d1 += ab[k] * ap[k];
+		d2 += ac[k] * ap[k];
+		d3 += ab[k] * bp[k];
+		d4 += ac[k] * bp[k];
+		d5 += ab[k] * cp[k];
+		d6 += ac[k] * cp[k];
+	}
+	va = d3 * d6 - d5 * d4;
+	vb = d5 * d2 - d1 * d6;
+	vc = d1 * d4 - d3 * d2;
+	weights[0] = weights[1] = weights[2] = 0.0f;
+	if (d1 <= 0.0f && d2 <= 0.0f)
+	{
+		weights[0] = 1.0f;
+	}
+	else if (d3 >= 0.0f && d4 <= d3)
+	{
+		weights[1] = 1.0f;
+	}
+	else if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f)
+	{
+		weights[1] = d1 - d3 != 0.0f ? d1 / (d1 - d3) : 0.5f;
+		weights[0] = 1.0f - weights[1];
+	}
+	else if (d6 >= 0.0f && d5 <= d6)
+	{
+		weights[2] = 1.0f;
+	}
+	else if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f)
+	{
+		weights[2] = d2 - d6 != 0.0f ? d2 / (d2 - d6) : 0.5f;
+		weights[0] = 1.0f - weights[2];
+	}
+	else if (va <= 0.0f && d4 - d3 >= 0.0f && d5 - d6 >= 0.0f)
+	{
+		weights[2] = (d4 - d3) + (d5 - d6) != 0.0f ? (d4 - d3) / ((d4 - d3) + (d5 - d6)) : 0.5f;
+		weights[1] = 1.0f - weights[2];
+	}
+	else if (va + vb + vc != 0.0f)
+	{
+		weights[1] = vb / (va + vb + vc);
+		weights[2] = vc / (va + vb + vc);
+		weights[0] = 1.0f - weights[1] - weights[2];
+	}
+	else
+	{
+		weights[0] = 1.0f;
+	}
+	for (k = 0; k < 3; k++)
+	{
+		real nearest = a[k] * weights[0] + b[k] * weights[1] + c[k] * weights[2];
+
+		distance += (p[k] - nearest) * (p[k] - nearest);
+	}
+
+	return distance;
+}
+
+/* the Xbox map's triangles near the frames, into gearbox_frames_nearby */
+static long gearbox_frames_gather_nearby(
+	struct structure_bsp const *structure_bsp,
+	struct gearbox_map_frames const *frames)
+{
+	long vertex_size = rasterizer_geometry_get_vertex_size(_rasterizer_vertex_type_environment_compressed);
+	long lightmap_vertex_size = rasterizer_geometry_get_vertex_size(_rasterizer_vertex_type_environment_lightmap_compressed);
+	word const *surfaces = (word const *)structure_bsp->surfaces.address;
+	long count = 0;
+	long lightmap_index;
+
+	for (lightmap_index = 0; lightmap_index < structure_bsp->lightmaps.count; lightmap_index++)
+	{
+		struct structure_lightmap const *lightmap = TAG_BLOCK_GET_ELEMENT(&structure_bsp->lightmaps, lightmap_index,
+			struct structure_lightmap);
+		long material_index;
+
+		for (material_index = 0; material_index < lightmap->materials.count; material_index++)
+		{
+			struct structure_material const *material = TAG_BLOCK_GET_ELEMENT(&lightmap->materials, material_index,
+				struct structure_material);
+			byte const *vertices = (byte const *)material->compressed_vertex_data.address;
+			long vertex_count = material->vertices.count;
+			long lightmap_count = material->lightmap_vertices.count;
+			boolean lit = lightmap->bitmap_index != NONE && lightmap_count == vertex_count;
+			long surface_index;
+
+			if (!vertices || vertex_count <= 0 || lightmap_count < 0 || vertex_count > 0x10000 ||
+				material->compressed_vertex_data.size < vertex_count * vertex_size + lightmap_count * lightmap_vertex_size ||
+				material->first_surface_index < 0 || material->surface_count < 0 ||
+				material->first_surface_index > structure_bsp->surfaces.count - material->surface_count)
+			{
+				continue;
+			}
+			for (surface_index = material->first_surface_index;
+				surface_index < material->first_surface_index + material->surface_count;
+				surface_index++)
+			{
+				word const *corner_indices = surfaces + 3 * surface_index;
+				struct gearbox_frame_nearby *nearby = &gearbox_frames_nearby[count];
+				real x = 0.0f, y = 0.0f;
+				short corner, frame;
+
+				if (corner_indices[0] >= vertex_count || corner_indices[1] >= vertex_count || corner_indices[2] >= vertex_count)
+					continue;
+				for (corner = 0; corner < 3; corner++)
+				{
+					memcpy(&nearby->corners[corner], vertices + corner_indices[corner] * vertex_size, sizeof(real_point3d));
+					x += nearby->corners[corner].x / 3.0f;
+					y += nearby->corners[corner].y / 3.0f;
+				}
+				for (frame = 0; frame < frames->count; frame++)
+				{
+					real dx = x - frames->teleporters[frame].x, dy = y - frames->teleporters[frame].y;
+
+					if (dx * dx + dy * dy <= (frames->radius + GEARBOX_FRAME_NEARBY) * (frames->radius + GEARBOX_FRAME_NEARBY))
+						break;
+				}
+				if (frame == frames->count)
+					continue;
+				nearby->frame = frame;
+				nearby->lightmap = lit ? (short)lightmap_index : NONE;
+				for (corner = 0; lit && corner < 3; corner++)
+				{
+					short texcoord[2];
+
+					memcpy(texcoord, vertices + vertex_count * vertex_size + corner_indices[corner] * lightmap_vertex_size + 4,
+						sizeof(texcoord));
+					nearby->lightmap_texcoords[corner].x = ((real)texcoord[0] + 0.5f) / 32767.5f;
+					nearby->lightmap_texcoords[corner].y = ((real)texcoord[1] + 0.5f) / 32767.5f;
+				}
+				if (++count == MAXIMUM_GEARBOX_FRAME_NEARBY)
+					return count;
+			}
+		}
+	}
+
+	return count;
+}
+
+/* whether all the triangle's corners lie on the Xbox map's surfaces near
+the frame */
+static boolean gearbox_frame_triangle_on_xbox(
+	struct gearbox_frame_triangle const *triangle,
+	long nearby_count)
+{
+	short corner;
+
+	for (corner = 0; corner < 3; corner++)
+	{
+		long index;
+
+		for (index = 0; index < nearby_count; index++)
+		{
+			real weights[3];
+
+			if (gearbox_frames_nearby[index].frame == triangle->frame &&
+				gearbox_triangle_nearest(&triangle->vertices[corner].position, gearbox_frames_nearby[index].corners, weights) <
+					GEARBOX_FRAME_ON_SURFACE * GEARBOX_FRAME_ON_SURFACE)
+			{
+				break;
+			}
+		}
+		if (index == nearby_count)
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/* Halo PC's triangles of the frames, into gearbox_frame_triangles */
+static long gearbox_frames_pick(
+	struct gearbox_map_frames const *frames,
+	long nearby_count)
+{
+	struct structure_bsp const *pc = gearbox_barriers.structure_bsp;
+	struct structure_lightmap const *lightmaps = pc ?
+		gearbox_pc_bsp_elements(pc->lightmaps.address, pc->lightmaps.count, sizeof(*lightmaps)) : NULL;
+	word const *surfaces = pc ? gearbox_pc_bsp_elements(pc->surfaces.address, pc->surfaces.count, 3 * sizeof(word)) : NULL;
+	long count = 0;
+	long lightmap_index;
+
+	for (lightmap_index = 0; lightmaps && surfaces && lightmap_index < pc->lightmaps.count; lightmap_index++)
+	{
+		struct structure_material const *materials = gearbox_pc_bsp_elements(lightmaps[lightmap_index].materials.address,
+			lightmaps[lightmap_index].materials.count, sizeof(*materials));
+		long material_index;
+
+		for (material_index = 0; materials && material_index < lightmaps[lightmap_index].materials.count; material_index++)
+		{
+			struct structure_material const *material = &materials[material_index];
+			char const *name = gearbox_donor_handle_name(material->shader.index);
+			long vertex_count = material->vertices.count;
+			long lightmap_count = material->lightmap_vertices.count;
+			struct gearbox_environment_vertex const *vertices = NULL;
+			struct gearbox_lightmap_vertex const *lightmap_vertices = NULL;
+			long surface_index;
+			short shader;
+
+			for (shader = 0; name && shader < frames->shader_count && csstrcasecmp(frames->shaders[shader], name); shader++)
+				;
+			if (!name || shader == frames->shader_count || vertex_count <= 0 || vertex_count > 0x10000 ||
+				(lightmap_count != 0 && lightmap_count != vertex_count) ||
+				material->uncompressed_vertex_data.size < vertex_count * (long)sizeof(*vertices) +
+					lightmap_count * (long)sizeof(*lightmap_vertices) ||
+				material->first_surface_index < 0 || material->surface_count < 0 ||
+				material->first_surface_index > pc->surfaces.count - material->surface_count)
+			{
+				continue;
+			}
+			vertices = gearbox_pc_bsp_elements(material->uncompressed_vertex_data.address,
+				vertex_count * (long)sizeof(*vertices) + lightmap_count * (long)sizeof(*lightmap_vertices), 1);
+			if (!vertices)
+				continue;
+			if (lightmap_count)
+				lightmap_vertices = (struct gearbox_lightmap_vertex const *)(vertices + vertex_count);
+			for (surface_index = material->first_surface_index;
+				surface_index < material->first_surface_index + material->surface_count;
+				surface_index++)
+			{
+				word const *corner_indices = surfaces + 3 * surface_index;
+				struct gearbox_frame_triangle *triangle = &gearbox_frame_triangles[count];
+				real x = 0.0f, y = 0.0f, top = -1.0e6f;
+				short corner, frame;
+
+				if (corner_indices[0] >= vertex_count || corner_indices[1] >= vertex_count || corner_indices[2] >= vertex_count)
+					continue;
+				for (corner = 0; corner < 3; corner++)
+				{
+					triangle->vertices[corner] = vertices[corner_indices[corner]];
+					triangle->incident[corner] = lightmap_vertices ? lightmap_vertices[corner_indices[corner]].incident_radiosity :
+						vertices[corner_indices[corner]].normal;
+					x += triangle->vertices[corner].position.x / 3.0f;
+					y += triangle->vertices[corner].position.y / 3.0f;
+					if (triangle->vertices[corner].position.z > top)
+						top = triangle->vertices[corner].position.z;
+				}
+				for (frame = 0; frame < frames->count; frame++)
+				{
+					real dx = x - frames->teleporters[frame].x, dy = y - frames->teleporters[frame].y;
+
+					if (dx * dx + dy * dy <= frames->radius * frames->radius &&
+						top > frames->teleporters[frame].z + GEARBOX_FRAME_FLOOR)
+					{
+						break;
+					}
+				}
+				if (frame == frames->count)
+					continue;
+				triangle->frame = frame;
+				triangle->shader = shader;
+				if (gearbox_frame_triangle_on_xbox(triangle, nearby_count))
+					continue;
+				if (++count == MAXIMUM_GEARBOX_FRAME_TRIANGLES)
+					return count;
+			}
+		}
+	}
+
+	return count;
+}
+
+/* the lightmap place for a point of a frame: of the wall behind it (its
+lightmap's triangle `wall`), at the wall's point nearest it, a fifth of the
+way to the triangle's middle. (One triangle's: the nearest surface's place
+for each corner put a face's corners in different parts of the lightmap,
+whose texels between them are other surfaces'.) */
+static real_point2d gearbox_frame_lightmap_texcoord(
+	real_point3d const *point,
+	struct gearbox_frame_nearby const *wall)
+{
+	real_point2d texcoord;
+	real weights[3];
+	short corner;
+
+	gearbox_triangle_nearest(point, wall->corners, weights);
+	texcoord.x = texcoord.y = 0.0f;
+	for (corner = 0; corner < 3; corner++)
+	{
+		real weight = weights[corner] * 0.8f + 0.2f / 3.0f;
+
+		texcoord.x += wall->lightmap_texcoords[corner].x * weight;
+		texcoord.y += wall->lightmap_texcoords[corner].y * weight;
+	}
+
+	return texcoord;
+}
+
+/* Halo PC's teleporter frames of the map (gearbox_map_frames) drawn on its
+own structure bsp, just loaded: its blocks they join are copies with them
+(its surfaces, lightmaps, and the frames' clusters' subclusters), and what
+the bsp had is kept where it was read (it is read again with the map) */
+static void gearbox_frames_build(
+	struct structure_bsp *structure_bsp)
+{
+	struct gearbox_map_frames const *frames = gearbox_items_globals.frames;
+	long vertex_size = rasterizer_geometry_get_vertex_size(_rasterizer_vertex_type_environment_compressed);
+	long lightmap_vertex_size = rasterizer_geometry_get_vertex_size(_rasterizer_vertex_type_environment_lightmap_compressed);
+	struct
+	{
+		short frame;
+		short shader;
+		long triangle_count;
+		struct structure_material const *template_material;
+		struct structure_lightmap const *lightmap;
+		boolean lit;
+	} groups[MAXIMUM_GEARBOX_FRAME_GROUPS];
+	short room_lightmaps[MAXIMUM_GEARBOX_FRAMES];
+	long walls[MAXIMUM_GEARBOX_FRAMES];
+	short clusters[MAXIMUM_GEARBOX_FRAMES];
+	long frame_triangles[MAXIMUM_GEARBOX_FRAMES];
+	long nearby_count, triangle_count, drawn_count = 0, vertices_size = 0, blocks_size, surface_count, index;
+	short group_count = 0, frame, shader, group;
+	byte *cursor;
+	word *surfaces;
+	struct structure_lightmap *lightmaps;
+	long *surface_indices;
+	char const *failure = NULL;
+
+	gearbox_frames_release();
+	if (!frames || !gearbox_barriers.loaded || frames->count > MAXIMUM_GEARBOX_FRAMES)
+		return;
+	nearby_count = gearbox_frames_gather_nearby(structure_bsp, frames);
+	triangle_count = gearbox_frames_pick(frames, nearby_count);
+
+	/* each frame's room: the cluster it stands in, and the wall behind it
+	(the lit upright surface nearest a little above its floor), whose
+	lightmap lights it */
+	for (frame = 0; frame < frames->count; frame++)
+	{
+		real_point3d above = frames->teleporters[frame];
+		real nearest = -1.0f;
+
+		above.z += 0.5f;
+		clusters[frame] = (short)cluster_index_from_point(structure_bsp, &above);
+		room_lightmaps[frame] = NONE;
+		walls[frame] = NONE;
+		frame_triangles[frame] = 0;
+		for (index = 0; index < nearby_count; index++)
+		{
+			struct gearbox_frame_nearby const *nearby = &gearbox_frames_nearby[index];
+			real_point3d const *c = nearby->corners;
+			real nx = (c[1].y - c[0].y) * (c[2].z - c[0].z) - (c[1].z - c[0].z) * (c[2].y - c[0].y);
+			real ny = (c[1].z - c[0].z) * (c[2].x - c[0].x) - (c[1].x - c[0].x) * (c[2].z - c[0].z);
+			real nz = (c[1].x - c[0].x) * (c[2].y - c[0].y) - (c[1].y - c[0].y) * (c[2].x - c[0].x);
+			real weights[3];
+			real distance;
+
+			/* (upright: its normal less than a third up or down) */
+			if (nearby->frame != frame || nearby->lightmap == NONE || 9.0f * nz * nz > nx * nx + ny * ny + nz * nz)
+				continue;
+			distance = gearbox_triangle_nearest(&above, nearby->corners, weights);
+			if (nearest < 0.0f || distance < nearest)
+			{
+				nearest = distance;
+				walls[frame] = index;
+				room_lightmaps[frame] = nearby->lightmap;
+			}
+		}
+	}
+
+	/* a material for each frame's triangles of each shader: a copy of the
+	Xbox map's of the shader (in the room's lightmap, if it has one there),
+	in a lightmap of its own (the room's, or that material's) */
+	for (frame = 0; frame < frames->count; frame++)
+	{
+		for (shader = 0; shader < frames->shader_count; shader++)
+		{
+			long count = 0, handle = gearbox_shader_handle(frames->shaders[shader]);
+			struct structure_material const *template_material = NULL;
+			struct structure_lightmap const *template_lightmap = NULL;
+			long lightmap_index;
+
+			for (index = 0; index < triangle_count; index++)
+				count += gearbox_frame_triangles[index].frame == frame && gearbox_frame_triangles[index].shader == shader;
+			if (!count || handle == NONE || clusters[frame] == NONE)
+				continue;
+			for (lightmap_index = 0; lightmap_index < structure_bsp->lightmaps.count; lightmap_index++)
+			{
+				struct structure_lightmap const *lightmap = TAG_BLOCK_GET_ELEMENT(&structure_bsp->lightmaps, lightmap_index,
+					struct structure_lightmap);
+				long material_index;
+
+				for (material_index = 0; material_index < lightmap->materials.count; material_index++)
+				{
+					struct structure_material const *material = TAG_BLOCK_GET_ELEMENT(&lightmap->materials, material_index,
+						struct structure_material);
+
+					if (material->shader.index == handle &&
+						(!template_material || lightmap_index == room_lightmaps[frame]))
+					{
+						template_material = material;
+						template_lightmap = lightmap;
+					}
+				}
+			}
+			if (!template_material || group_count == MAXIMUM_GEARBOX_FRAME_GROUPS)
+				continue;
+			groups[group_count].frame = frame;
+			groups[group_count].shader = shader;
+			groups[group_count].triangle_count = count;
+			groups[group_count].template_material = template_material;
+			groups[group_count].lit = template_material->lightmap_vertices.count > 0;
+			if (groups[group_count].lit && room_lightmaps[frame] == NONE)
+				continue;
+			groups[group_count].lightmap = groups[group_count].lit ?
+				TAG_BLOCK_GET_ELEMENT(&structure_bsp->lightmaps, room_lightmaps[frame], struct structure_lightmap) :
+				template_lightmap;
+			vertices_size += 3 * count * (vertex_size + (groups[group_count].lit ? lightmap_vertex_size : 0));
+			drawn_count += count;
+			frame_triangles[frame] += count;
+			group_count++;
+		}
+	}
+	if (!group_count)
+	{
+		error(_error_silent, "gearbox items: the teleporters' frames are not drawn: none of Halo PC's were found (%ld triangles)",
+			triangle_count);
+		return;
+	}
+
+	/* the bsp's blocks with them, the made materials, and the frames'
+	subclusters with each cluster's own */
+	surface_count = structure_bsp->surfaces.count + drawn_count;
+	blocks_size = ((surface_count * 3 * (long)sizeof(word) + 3) & ~3) +
+		(structure_bsp->lightmaps.count + group_count) * (long)sizeof(struct structure_lightmap) +
+		group_count * (long)sizeof(struct structure_material) +
+		drawn_count * (long)sizeof(long);
+	for (frame = 0; frame < frames->count; frame++)
+	{
+		if (frame_triangles[frame])
+		{
+			struct gearbox_cluster_view const *cluster = TAG_BLOCK_GET_ELEMENT(&structure_bsp->clusters, clusters[frame],
+				struct gearbox_cluster_view);
+
+			blocks_size += (cluster->subclusters.count + frames->count) * (long)sizeof(struct gearbox_subcluster);
+		}
+	}
+	if (surface_count > MAXIMUM_SURFACES_PER_STRUCTURE)
+		failure = "the structure bsp has too many surfaces for them";
+	gearbox_frames_made.blocks = failure ? NULL : malloc(blocks_size);
+	gearbox_frames_made.vertices = gearbox_frames_made.blocks ?
+		XPhysicalAlloc(vertices_size, (unsigned long)-1, 0, PAGE_READWRITE) : NULL;
+	gearbox_frames_made.vertices_contiguous = gearbox_frames_made.vertices != NULL;
+	if (gearbox_frames_made.blocks && !gearbox_frames_made.vertices)
+		gearbox_frames_made.vertices = malloc(vertices_size);
+	if (!failure && (!gearbox_frames_made.blocks || !gearbox_frames_made.vertices))
+		failure = "out of memory";
+	if (failure)
+	{
+		error(_error_silent, "gearbox items: the teleporters' frames are not drawn: %s", failure);
+		gearbox_frames_release();
+		return;
+	}
+	cursor = gearbox_frames_made.blocks;
+	surfaces = (word *)cursor;
+	cursor += (surface_count * 3 * sizeof(word) + 3) & ~3;
+	lightmaps = (struct structure_lightmap *)cursor;
+	cursor += (structure_bsp->lightmaps.count + group_count) * sizeof(struct structure_lightmap);
+	gearbox_frames_made.materials = (struct structure_material *)cursor;
+	cursor += group_count * sizeof(struct structure_material);
+	surface_indices = (long *)cursor;
+	cursor += drawn_count * sizeof(long);
+	memcpy(surfaces, structure_bsp->surfaces.address, structure_bsp->surfaces.count * 3 * sizeof(word));
+	memcpy(lightmaps, structure_bsp->lightmaps.address, structure_bsp->lightmaps.count * sizeof(struct structure_lightmap));
+
+	/* each material: its vertices (Halo PC's, lit from the room's lightmap),
+	compressed, with buffers, and its triangles after the bsp's */
+	{
+		byte *compressed = gearbox_frames_made.vertices;
+		long surface_index = structure_bsp->surfaces.count;
+		long indices_written = 0;
+
+		for (group = 0; group < group_count; group++)
+		{
+			struct structure_material *material = &gearbox_frames_made.materials[group];
+			struct structure_lightmap *lightmap = &lightmaps[structure_bsp->lightmaps.count + group];
+			long vertex_count = 0;
+			real_point3d centroid = { 0.0f, 0.0f, 0.0f };
+
+			for (index = 0; index < triangle_count; index++)
+			{
+				struct gearbox_frame_triangle const *triangle = &gearbox_frame_triangles[index];
+				short corner;
+
+				if (triangle->frame != groups[group].frame || triangle->shader != groups[group].shader)
+					continue;
+				for (corner = 0; corner < 3; corner++)
+				{
+					struct gearbox_lightmap_vertex *lightmap_vertex = &gearbox_frame_lightmap_vertices[vertex_count];
+
+					gearbox_frame_vertices[vertex_count] = triangle->vertices[corner];
+					lightmap_vertex->incident_radiosity = triangle->incident[corner];
+					lightmap_vertex->texcoord = groups[group].lit ?
+						gearbox_frame_lightmap_texcoord(&triangle->vertices[corner].position,
+							&gearbox_frames_nearby[walls[triangle->frame]]) :
+						triangle->vertices[corner].texcoord;
+					centroid.x += triangle->vertices[corner].position.x;
+					centroid.y += triangle->vertices[corner].position.y;
+					centroid.z += triangle->vertices[corner].position.z;
+					vertex_count++;
+				}
+				surfaces[3 * surface_index] = (word)(vertex_count - 3);
+				surfaces[3 * surface_index + 1] = (word)(vertex_count - 2);
+				surfaces[3 * surface_index + 2] = (word)(vertex_count - 1);
+				surface_index++;
+			}
+			*material = *groups[group].template_material;
+			material->first_surface_index = surface_index - vertex_count / 3;
+			material->surface_count = vertex_count / 3;
+			material->centroid.x = centroid.x / vertex_count;
+			material->centroid.y = centroid.y / vertex_count;
+			material->centroid.z = centroid.z / vertex_count;
+			material->breakable_surface_index = NONE;
+			memset(&material->vertices, 0, sizeof(material->vertices));
+			memset(&material->lightmap_vertices, 0, sizeof(material->lightmap_vertices));
+			memset(&material->uncompressed_vertex_data, 0, sizeof(material->uncompressed_vertex_data));
+			rasterizer_geometry_compress_vertices(_rasterizer_vertex_type_environment_uncompressed, vertex_count,
+				compressed, vertex_count * vertex_size, gearbox_frame_vertices,
+				vertex_count * (long)sizeof(struct gearbox_environment_vertex));
+			if (groups[group].lit)
+			{
+				rasterizer_geometry_compress_vertices(_rasterizer_vertex_type_environment_lightmap_uncompressed, vertex_count,
+					compressed + vertex_count * vertex_size, vertex_count * lightmap_vertex_size, gearbox_frame_lightmap_vertices,
+					vertex_count * (long)sizeof(struct gearbox_lightmap_vertex));
+			}
+			material->compressed_vertex_data.size = vertex_count * (vertex_size + (groups[group].lit ? lightmap_vertex_size : 0));
+			material->compressed_vertex_data.address = XBOX_ADDRESS(compressed);
+			gearbox_frames_made.material_count = group + 1;
+			if (!rasterizer_vertex_buffer_new(&material->vertices, _rasterizer_vertex_type_environment_compressed, vertex_count,
+					compressed, vertex_count * vertex_size) ||
+				(groups[group].lit && !rasterizer_vertex_buffer_new(&material->lightmap_vertices,
+					_rasterizer_vertex_type_environment_lightmap_compressed, vertex_count, compressed + vertex_count * vertex_size,
+					vertex_count * lightmap_vertex_size)))
+			{
+				error(_error_silent, "gearbox items: the teleporters' frames are not drawn: their vertex buffers cannot be made");
+				gearbox_frames_release();
+				return;
+			}
+			compressed += material->compressed_vertex_data.size;
+			*lightmap = *groups[group].lightmap;
+			lightmap->materials.count = 1;
+			lightmap->materials.address = material;
+		}
+
+		/* and each frame's triangles a subcluster of its room's cluster (two
+		frames in one cluster each one) */
+		for (frame = 0; frame < frames->count; frame++)
+		{
+			struct gearbox_cluster_view *cluster;
+			struct gearbox_subcluster *subclusters, *subcluster;
+			long first_index = indices_written;
+			short corner;
+
+			if (!frame_triangles[frame])
+				continue;
+			cluster = TAG_BLOCK_GET_ELEMENT(&structure_bsp->clusters, clusters[frame], struct gearbox_cluster_view);
+			subclusters = (struct gearbox_subcluster *)cursor;
+			cursor += (cluster->subclusters.count + 1) * sizeof(struct gearbox_subcluster);
+			if (cluster->subclusters.count > 0)
+				memcpy(subclusters, cluster->subclusters.address, cluster->subclusters.count * sizeof(*subclusters));
+			subcluster = &subclusters[cluster->subclusters.count];
+			memset(subcluster, 0, sizeof(*subcluster));
+			if (cluster->subclusters.count > 0)
+				subcluster->surface_indices.definition = subclusters[0].surface_indices.definition;
+			subcluster->world_bounds.x0 = subcluster->world_bounds.y0 = subcluster->world_bounds.z0 = 1.0e6f;
+			subcluster->world_bounds.x1 = subcluster->world_bounds.y1 = subcluster->world_bounds.z1 = -1.0e6f;
+			for (group = 0; group < group_count; group++)
+			{
+				struct structure_material const *material = &gearbox_frames_made.materials[group];
+				long triangle_index = 0;
+
+				if (groups[group].frame != frame)
+					continue;
+				for (index = 0; index < triangle_count; index++)
+				{
+					struct gearbox_frame_triangle const *triangle = &gearbox_frame_triangles[index];
+
+					if (triangle->frame != frame || triangle->shader != groups[group].shader)
+						continue;
+					surface_indices[indices_written++] = material->first_surface_index + triangle_index++;
+					for (corner = 0; corner < 3; corner++)
+					{
+						real_point3d const *point = &triangle->vertices[corner].position;
+
+						subcluster->world_bounds.x0 = MIN(subcluster->world_bounds.x0, point->x);
+						subcluster->world_bounds.x1 = MAX(subcluster->world_bounds.x1, point->x);
+						subcluster->world_bounds.y0 = MIN(subcluster->world_bounds.y0, point->y);
+						subcluster->world_bounds.y1 = MAX(subcluster->world_bounds.y1, point->y);
+						subcluster->world_bounds.z0 = MIN(subcluster->world_bounds.z0, point->z);
+						subcluster->world_bounds.z1 = MAX(subcluster->world_bounds.z1, point->z);
+					}
+				}
+			}
+			subcluster->surface_indices.count = indices_written - first_index;
+			subcluster->surface_indices.address = &surface_indices[first_index];
+			cluster->subclusters.count++;
+			cluster->subclusters.address = subclusters;
+		}
+	}
+	structure_bsp->surfaces.count = surface_count;
+	structure_bsp->surfaces.address = surfaces;
+	structure_bsp->lightmaps.count += group_count;
+	structure_bsp->lightmaps.address = lightmaps;
+	error(_error_silent, "gearbox items: %ld triangles of Halo PC's teleporter frames drawn (%d materials)", drawn_count,
+		group_count);
 
 	return;
 }
@@ -2472,6 +3327,7 @@ static boolean gearbox_import(
 			gearbox_items_globals.has_flying_ceiling = selection.change && selection.change->has_flying_ceiling;
 			gearbox_items_globals.flying_ceiling = gearbox_items_globals.has_flying_ceiling ?
 				selection.change->flying_ceiling : 0.0f;
+			gearbox_items_globals.frames = selection.change ? selection.change->frames : NULL;
 			for (index = 0; index < import.donor_count; index++)
 			{
 				added += import.states[index] == _donor_tag_added;
@@ -2631,6 +3487,7 @@ void gearbox_items_tags_unloaded(
 	/* (Halo PC's structure bsp was in the donor's tag cache) */
 	memset(&gearbox_map_bsp, 0, sizeof(gearbox_map_bsp));
 	memset(&gearbox_map_arrows, 0, sizeof(gearbox_map_arrows));
+	gearbox_frames_release();
 	if (gearbox_barriers.data)
 		free(gearbox_barriers.data);
 	memset(&gearbox_barriers, 0, sizeof(gearbox_barriers));
@@ -2684,6 +3541,9 @@ void gearbox_items_structure_bsp_loaded(
 	map's flying ceiling, at which gearbox_items_update holds it) */
 	if (gearbox_items_globals.has_flying_ceiling)
 		structure_bsp->vehicle_ceiling = gearbox_items_globals.flying_ceiling - GEARBOX_SOFT_CEILING_DEPTH;
+	/* (Halo PC's teleporter frames on the map's own bsp: Halo PC's has them) */
+	if (!gearbox_map_bsp.in_use)
+		gearbox_frames_build(structure_bsp);
 	if (!arrows)
 		return;
 	if (structure_bsp->runtime_decals.count < 0 ||
@@ -2989,6 +3849,10 @@ static void gearbox_barriers_load(
 	gearbox_barriers.bsp = bsp;
 	gearbox_barriers.data = data;
 	gearbox_barriers.loaded = TRUE;
+	gearbox_barriers.base = base;
+	gearbox_barriers.size = size;
+	gearbox_barriers.structure_bsp = structure_bsp;
+	gearbox_barriers.donor = donor;
 	data = NULL;
 	for (index = 0; index < bsp.surfaces.count; index++)
 	{
