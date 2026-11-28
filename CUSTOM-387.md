@@ -221,6 +221,11 @@ after a load), as their reviews asked.
   gave (`port/assets/menus/NON_HANDDRAWN.md`). The project ships only
   hand-drawn redraws there, and `tools/ce_menus.py` writes the
   placeholders again.
+- The menus' other pictures that were placeholders are Gearbox's own, read
+  from Halo PC's `ui.map`: EDIT PROFILE SETTINGS' controls, mouse, audio,
+  video, network and about pictures, and EDIT MULTIPLAYER GAMETYPE's change
+  name, item, vehicle and teamplay options and its OK. They are 3D renders
+  (`port/assets/menus/NON_HANDDRAWN.md`), which the project does not ship.
 - Text chat in public internet games a player hosts (listed in the server
   browser), as the host's TEXT CHAT says (`network.public_text_chat`, on).
   The main build keeps such games without chat, on the host and on every

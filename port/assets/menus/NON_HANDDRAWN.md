@@ -52,26 +52,27 @@ this build's alone; `tools/ce_menus.py` writes placeholders there again.
 | `ce/shell/main_menu/multiplayer_type_select/mp_options__0.png` | 2048x1024 | `shell/main_menu/multiplayer_type_select/mp_options__0.png` |
 | `ce/shell/main_menu/multiplayer_type_select/mp_options__1.png` | 2048x1024 | `shell/main_menu/multiplayer_type_select/mp_options__1.png` |
 
-## Placeholders, to be redrawn
+## Gearbox's, for this build (custom-387)
 
-The Xbox's map has none of these (or other pictures under the name), so each frame is a placeholder
-until it is redrawn.
+The PC version's own pictures, 3D renders, where the menus showed placeholders: read from Halo PC's
+`ui.map` and `bitmaps.map` (its 512x256 frames) and stored at 2x. They are this build's alone;
+`tools/ce_menus.py` writes placeholders there again.
 
 | File | Size | The PC version's picture |
 | --- | --- | --- |
-| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__0.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__0.png` |
-| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__3.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__3.png` |
-| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__4.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__4.png` |
-| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__6.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__6.png` |
-| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__7.png` | 512x256 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__7.png` |
-| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__1.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__1.png` |
-| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__3.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__3.png` |
-| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__4.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__4.png` |
-| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__5.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__5.png` |
-| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__6.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__6.png` |
-| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__8.png` | 512x256 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__8.png` |
+| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__0.png` | 1024x512 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__0.png` |
+| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__3.png` | 1024x512 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__3.png` |
+| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__4.png` | 1024x512 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__4.png` |
+| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__6.png` | 1024x512 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__6.png` |
+| `ce/shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__7.png` | 1024x512 | `shell/main_menu/settings_select/multiplayer_setup/playlist_edit/gametype_options__7.png` |
+| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__1.png` | 1024x512 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__1.png` |
+| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__3.png` | 1024x512 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__3.png` |
+| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__4.png` | 1024x512 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__4.png` |
+| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__5.png` | 1024x512 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__5.png` |
+| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__6.png` | 1024x512 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__6.png` |
+| `ce/shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__8.png` | 1024x512 | `shell/main_menu/settings_select/player_setup/player_profile_edit/profile_options__8.png` |
 
-11 of 183 frames are placeholders.
+None of the 183 frames is a placeholder.
 
 The PC version's `ui\gamespy` and `ui\ticker` fonts are drawn with `ui\small_ui`, which
 the Xbox's map has.
