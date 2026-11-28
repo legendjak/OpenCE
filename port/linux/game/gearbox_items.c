@@ -1669,18 +1669,13 @@ struct gearbox_change_selection
 };
 
 /* Blood Gulch: its large shrub off the ground set on it, and another
-beside it. Battle Creek: the two ferns on the path set apart. Sidewinder: a
-teleporter in each base's room, where the Xbox's has a teleporter's pad,
-red and blue beacons at the bases' doors and the teleporters, and two of
-each power-up in the middle tunnel, where the Xbox's has one. */
+beside it. Sidewinder: a teleporter in each base's room, where the Xbox's
+has a teleporter's pad, red and blue beacons at the bases' doors and the
+teleporters, and two of each power-up in the middle tunnel, where the
+Xbox's has one. */
 static char const *const gearbox_bloodgulch_scenery[] =
 {
 	"scenery\\shrubs\\shrub_large\\shrub_large",
-	NULL
-};
-static char const *const gearbox_beavercreek_scenery[] =
-{
-	"scenery\\plants\\plant fern\\plant fern",
 	NULL
 };
 static char const *const gearbox_sidewinder_scenery[] =
@@ -1706,15 +1701,16 @@ static char const *const gearbox_sidewinder_bsp_scenery[] =
 	NULL
 };
 
-/* (Halo PC's structure bsps: Blood Gulch's small cliff walkable,
-Battle Creek's windows lower, Sidewinder's pillars thick, its teleporters'
-rooms and the arrows to them, and its bases' stripes drawn on the walls,
-where the Xbox's are decals) */
+/* (Halo PC's structure bsps: Blood Gulch's small cliff walkable, Battle
+Creek's side windows smaller) */
 static struct gearbox_map_change const gearbox_map_changes[] =
 {
 	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE },
-	{ "beavercreek", gearbox_beavercreek_scenery, NULL, FALSE, TRUE, NULL, FALSE },
-	{ "sidewinder", gearbox_sidewinder_scenery, gearbox_sidewinder_equipment, TRUE, TRUE,
+	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE },
+	/* (Sidewinder's own structure bsp: Halo PC's has its thick pillars,
+	teleporter rooms and arrows, but not the Xbox's lightmaps' shadows of its
+	trees and cliffs) */
+	{ "sidewinder", gearbox_sidewinder_scenery, gearbox_sidewinder_equipment, TRUE, FALSE,
 		gearbox_sidewinder_bsp_scenery, TRUE },
 };
 

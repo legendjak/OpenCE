@@ -342,12 +342,12 @@ static const struct config_setting config_settings[] =
 		"it." },
 	{ "game.gearbox_map_changes", _config_boolean, "true", "HALO_GEARBOX_MAP_CHANGES", _environment_value, _platform_all,
 		"With game.gearbox_items, Gearbox's changes to Blood Gulch, Battle Creek\n"
-		"and Sidewinder, taken from the Halo PC map of the same name: its level\n"
-		"geometry (Battle Creek's smaller windows, Blood Gulch's small cliff walkable,\n"
-		"Sidewinder's thick pillars, teleporter rooms and arrows), Blood Gulch's\n"
-		"shrub set on the ground and another, Battle Creek's ferns set apart,\n"
-		"Sidewinder's teleporters, beacons and two of each power-up. Every machine\n"
-		"of a network game needs the same; false: the Xbox's maps as they are." },
+		"and Sidewinder, taken from the Halo PC map of the same name: the level\n"
+		"geometry of Battle Creek (smaller side windows) and Blood Gulch (a\n"
+		"small cliff walkable), Blood Gulch's shrub set on the ground and another,\n"
+		"Sidewinder's teleporters in its bases, beacons and two of each power-up.\n"
+		"Every machine of a network game needs the same; false: the Xbox's maps\n"
+		"as they are." },
 	{ "display.e3_fuel_rod", _config_boolean, "true", "HALO_E3_FUEL_ROD", _environment_value, _platform_all,
 		"Draw Halo PC's fuel rod gun in first person glossy purple, as Gearbox's\n"
 		"E3 2003 trailer shows it: its texture's reflection mask is used (Halo PC\n"
