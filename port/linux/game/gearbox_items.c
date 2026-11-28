@@ -76,8 +76,9 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 records another */
 #define GEARBOX_ITEMS_FORMAT 0x47425831UL
 /* and with Gearbox's changes to the map (gearbox_map_change_find; 2: with
-Sidewinder's arrows, whose decals' tags are added to the table) */
-#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435832UL
+Sidewinder's arrows, whose decals' tags are added to the table; 3: and the
+Banshee's flying ceilings) */
+#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435833UL
 
 #define MAP_PATH_SIZE 256
 
@@ -305,6 +306,9 @@ static struct
 	long extended_string_lists;
 	/* Halo PC's HUD messaging icons in the grown table (NONE: none) */
 	long messaging_icons;
+	/* the map's flying ceiling (gearbox_map_change), if it has one */
+	boolean has_flying_ceiling;
+	real flying_ceiling;
 } gearbox_items_globals;
 
 /* the items' Banshees, each where it last was inside the map
@@ -1693,6 +1697,11 @@ struct gearbox_map_change
 	boolean bsp_no_decals;
 	/* with the Xbox map's structure bsp, Halo PC's arrows on it, or NULL */
 	struct gearbox_map_arrows const *arrows;
+	/* with a flying ceiling, the highest a Banshee flies (its origin): its
+	camera is then below the lowest of the walls around the map, which hide
+	all outside it */
+	boolean has_flying_ceiling;
+	real flying_ceiling;
 };
 
 /* the Halo PC map's placements an import takes for a map's changes (indices
@@ -1765,17 +1774,28 @@ static struct gearbox_map_arrows const gearbox_sidewinder_arrows =
 };
 
 /* (Halo PC's structure bsps: Blood Gulch's small cliff walkable, Battle
-Creek's side windows smaller) */
+Creek's side windows smaller. The flying ceilings: Blood Gulch's walls hide
+what is outside it from eyes below 13.4 world units, at their lowest at the
+red base's end, and Sidewinder's from eyes below 3.3, at the east wall
+beside the blue Banshee's place. A Banshee's camera is at most 2.45 above
+it while the top of its view is level or above (looking 28 degrees down, by
+its camera track), and lower looking further down; so each ceiling is 2.75
+below the walls. Gearbox's own ceilings, 11 and 1, pushed a Banshee down
+only a little, so that one climbing hard flew well above them.) */
 static struct gearbox_map_change const gearbox_map_changes[] =
 {
-	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE, NULL },
-	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE, NULL },
+	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE, NULL, TRUE, 10.5f },
+	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE, NULL, FALSE, 0.0f },
 	/* (Sidewinder's own structure bsp: Halo PC's has its thick pillars,
 	teleporter rooms and arrows, but not the Xbox's lightmaps' shadows of its
 	trees and cliffs; its arrows are drawn on the Xbox's) */
 	{ "sidewinder", gearbox_sidewinder_scenery, gearbox_sidewinder_equipment, TRUE, FALSE,
-		gearbox_sidewinder_bsp_scenery, TRUE, &gearbox_sidewinder_arrows },
+		gearbox_sidewinder_bsp_scenery, TRUE, &gearbox_sidewinder_arrows, TRUE, 0.5f },
 };
+
+/* (how far below its flying ceiling a map's structure bsp starts pushing a
+Banshee down, as Gearbox's ceilings do: it slows before it is held) */
+#define GEARBOX_SOFT_CEILING_DEPTH 1.0f
 
 /* (decals.c's decal definition: the fields an arrow's sets) */
 struct gearbox_decal_definition
@@ -2449,6 +2469,9 @@ static boolean gearbox_import(
 			if (selection.change)
 				gearbox_change_apply(&import, donor_scenario, scenario, &selection);
 			gearbox_items_globals.extended_string_lists = gearbox_import_string_lists(&import);
+			gearbox_items_globals.has_flying_ceiling = selection.change && selection.change->has_flying_ceiling;
+			gearbox_items_globals.flying_ceiling = gearbox_items_globals.has_flying_ceiling ?
+				selection.change->flying_ceiling : 0.0f;
 			for (index = 0; index < import.donor_count; index++)
 			{
 				added += import.states[index] == _donor_tag_added;
@@ -2655,7 +2678,13 @@ void gearbox_items_structure_bsp_loaded(
 	long cluster_index, count = 0, placed = 0;
 	short arrow_index;
 
-	if (!gearbox_items_globals.loaded || !arrows || !structure_bsp)
+	if (!gearbox_items_globals.loaded || !structure_bsp)
+		return;
+	/* (the bsp's own ceiling, which pushes a flyer down, a little below the
+	map's flying ceiling, at which gearbox_items_update holds it) */
+	if (gearbox_items_globals.has_flying_ceiling)
+		structure_bsp->vehicle_ceiling = gearbox_items_globals.flying_ceiling - GEARBOX_SOFT_CEILING_DEPTH;
+	if (!arrows)
 		return;
 	if (structure_bsp->runtime_decals.count < 0 ||
 		structure_bsp->runtime_decals.count + arrows->count > MAXIMUM_GEARBOX_RUNTIME_DECALS)
@@ -3035,6 +3064,17 @@ void gearbox_items_update(
 
 		if (object->definition_index != banshee)
 			continue;
+		/* (one above the map's flying ceiling is held at it, its climb taken
+		away) */
+		if (gearbox_items_globals.has_flying_ceiling && object->object.position.z > gearbox_items_globals.flying_ceiling)
+		{
+			real_point3d held = object->object.position;
+
+			held.z = gearbox_items_globals.flying_ceiling;
+			object_set_position(iterator.index, &held, NULL, NULL);
+			if (object->object.translational_velocity.k > 0.0f)
+				object->object.translational_velocity.k = 0.0f;
+		}
 		for (flyer = 0; flyer < GEARBOX_MAXIMUM_FLYERS && gearbox_flyers[flyer].object_index != iterator.index; flyer++)
 			;
 		/* (one crossing Halo PC's barriers is put back where it was, and

@@ -131,8 +131,14 @@ after a load), as their reviews asked.
   trees and cliffs. Its arrows on the floor to the teleporters are drawn on
   the Xbox's as decals: copies of Sidewinder's stripe decal with Halo PC's
   arrow bitmaps, added to the tag table, and placed in the clusters of the
-  floor under them in the structure BSP's runtime decals as it loads. And
-  some of the Halo PC map's placements
+  floor under them in the structure BSP's runtime decals as it loads. On
+  Blood Gulch and Sidewinder a Banshee is held at a flying ceiling (10.5 and
+  0.5): its camera stays below the lowest of the walls around the map (13.4
+  and 3.3, found by filling the map's height map from inside), so nothing
+  outside it is seen. Gearbox's ceilings (11 and 1) only pushed a Banshee
+  down, and one climbing hard flew well above them; the structure BSP's
+  ceiling is set a unit below ours, so a Banshee slows before it is held.
+  And some of the Halo PC map's placements
   stand for the Xbox map's: Blood Gulch's shrub that floated set on the
   ground and another beside it, Sidewinder's teleporters in its bases (with
   their flags), red and blue beacons, and two of each power-up in the middle
