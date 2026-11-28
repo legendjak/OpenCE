@@ -80,8 +80,9 @@ records another */
 #define GEARBOX_ITEMS_FORMAT 0x47425831UL
 /* and with Gearbox's changes to the map (gearbox_map_change_find; 2: with
 Sidewinder's arrows, whose decals' tags are added to the table; 3: and the
-Banshee's flying ceilings; 4: Sidewinder's at 1) */
-#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435834UL
+Banshee's flying ceilings; 4: Sidewinder's at 1; 5: its frames solid, and
+its needlers Halo PC's) */
+#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435835UL
 
 #define MAP_PATH_SIZE 256
 
@@ -1689,18 +1690,45 @@ struct gearbox_map_arrows
 	short count;
 };
 
+/* a frame Gearbox built around a teleporter: the teleporter's place (on
+its floor) and the way its field faces (into the wall), and the Xbox map's
+own frame of the same shape that it is lit as: its teleporter's place and
+its field's way */
+struct gearbox_map_frame
+{
+	real_point3d position;
+	real yaw;
+	real_point3d lit_position;
+	real lit_yaw;
+};
+
+/* a solid part of a frame: a box in its own axes, from its teleporter on
+its floor: across its field, into the wall, and up */
+struct gearbox_frame_box
+{
+	real across[2];
+	real depth[2];
+	real height[2];
+};
+
 /* the frames Gearbox built around teleporters in Halo PC's structure bsp
 that the Xbox map's has not: its triangles of their shaders near the
-teleporters (gearbox_frames_build) */
+teleporters (gearbox_frames_build), and their solid parts */
 struct gearbox_map_frames
 {
 	char const *const *shaders;
 	short shader_count;
 	/* (across, from a teleporter to a triangle's middle) */
 	real radius;
-	/* the teleporters, on their floor */
-	real_point3d const *teleporters;
+	struct gearbox_map_frame const *frames;
 	short count;
+	struct gearbox_frame_box const *boxes;
+	short box_count;
+	/* the Xbox frame's doorway's back (its surfaces within `doorway` across
+	and behind its front), drawn this far into the wall: in front of the Xbox
+	map's wall where the frame stands, behind which it is */
+	real doorway;
+	real back_depth;
 };
 
 /* the scenery and netgame equipment placements Gearbox changed on a map: of
@@ -1766,6 +1794,9 @@ static char const *const gearbox_sidewinder_equipment[] =
 {
 	"item collections\\powerups\\powerup super shield",
 	"item collections\\powerups\\powerup invisibility",
+	/* (the needlers beside the teleporters Gearbox moved, which would stand
+	in their frames' columns, at Gearbox's places in the rooms) */
+	"item collections\\single weapons\\needler",
 	NULL
 };
 
@@ -1809,18 +1840,33 @@ static char const *const gearbox_sidewinder_frame_shaders[] =
 	"levels\\b30\\shaders\\metal strips wide",
 	"levels\\test\\sidewinder\\shaders\\greenlight",
 };
-static real_point3d const gearbox_sidewinder_frame_teleporters[] =
+/* (each lit as the frame of the side teleporter on its side of the map,
+whose shape, turned by the fields' ways, it is to within 0.03) */
+static struct gearbox_map_frame const gearbox_sidewinder_frame_list[] =
 {
-	{ -52.34f, 22.49f, 0.17f },
-	{ 52.01f, 22.71f, 0.17f },
+	{ { -52.34f, 22.49f, 0.17f }, -2.01f, { -41.23f, 46.28f, 0.17f }, 1.14f },
+	{ { 52.01f, 22.71f, 0.17f }, -1.13f, { 41.10f, 46.13f, 0.17f }, 2.01f },
+};
+/* (its columns, 0.24 wide beside a 0.72 doorway, and its lintel above it:
+Halo PC's frame's corners, its front edges' bevel filled) */
+static struct gearbox_frame_box const gearbox_sidewinder_frame_boxes[] =
+{
+	{ { -0.60f, -0.356f }, { -0.12f, 0.20f }, { -0.10f, 1.19f } },
+	{ { 0.356f, 0.60f }, { -0.12f, 0.20f }, { -0.10f, 1.19f } },
+	{ { -0.60f, 0.60f }, { -0.12f, 0.20f }, { 0.948f, 1.29f } },
 };
 static struct gearbox_map_frames const gearbox_sidewinder_frames =
 {
 	gearbox_sidewinder_frame_shaders,
 	(short)NUMBEROF(gearbox_sidewinder_frame_shaders),
 	1.6f,
-	gearbox_sidewinder_frame_teleporters,
-	(short)NUMBEROF(gearbox_sidewinder_frame_teleporters)
+	gearbox_sidewinder_frame_list,
+	(short)NUMBEROF(gearbox_sidewinder_frame_list),
+	gearbox_sidewinder_frame_boxes,
+	(short)NUMBEROF(gearbox_sidewinder_frame_boxes),
+	/* (the side frames' back is 0.22 in; the rooms' walls 0.20) */
+	0.40f,
+	0.18f
 };
 
 /* (Halo PC's structure bsps: Blood Gulch's small cliff walkable, Battle
@@ -2184,6 +2230,9 @@ the materials made of them */
 #define MAXIMUM_GEARBOX_FRAME_NEARBY 2048
 #define MAXIMUM_GEARBOX_FRAME_GROUPS 16
 #define MAXIMUM_GEARBOX_FRAMES 8
+/* the frames' boxes, and the collision bsp's leaves they split */
+#define MAXIMUM_GEARBOX_FRAME_BOXES 16
+#define MAXIMUM_GEARBOX_FRAME_SLOTS 512
 /* (a triangle with a corner this far above a teleporter's floor rises above
 it; one whose corners are all this near the Xbox map's surfaces lies on
 them; and the Xbox map's surfaces this much further than the frames' are
@@ -2191,6 +2240,9 @@ the room's) */
 #define GEARBOX_FRAME_FLOOR 0.08f
 #define GEARBOX_FRAME_ON_SURFACE 0.01f
 #define GEARBOX_FRAME_NEARBY 2.0f
+/* (how near Halo PC's frame the Xbox frame's triangles copied onto it lie:
+the frames are of one shape to within 0.03) */
+#define GEARBOX_FRAME_COPY_NEAR 0.04f
 
 /* (rasterizer_geometry.c's uncompressed vertices) */
 struct gearbox_environment_vertex
@@ -2228,23 +2280,30 @@ typedef char verify_gearbox_cluster_view_size[sizeof(struct gearbox_cluster_view
 typedef char verify_gearbox_subcluster_size[sizeof(struct gearbox_subcluster) == 0x24 ? 1 : -1];
 
 /* a triangle of Halo PC's frames taken (its frame and shader, and the
-incident light of its corners' lightmap vertices) */
+incident light of its corners' lightmap vertices), or of the Xbox map's own
+frame copied onto it, with its lightmap places (gearbox_frames_copy) */
 struct gearbox_frame_triangle
 {
 	short frame;
 	short shader;
 	struct gearbox_environment_vertex vertices[3];
 	real_vector3d incident[3];
+	boolean copied;
+	real_point2d lightmap_texcoords[3];
 };
 
-/* a triangle of the Xbox map's near a frame: its lightmap (NONE: unlit) and
-its corners' lightmap places */
+/* a triangle of the Xbox map's near a frame (or the frame it is lit as):
+its lightmap (NONE: unlit) and its corners' lightmap places */
 struct gearbox_frame_nearby
 {
 	short frame;
+	boolean lit_source;
 	short lightmap;
 	real_point3d corners[3];
 	real_point2d lightmap_texcoords[3];
+	/* (its material, and its corners' vertices in it) */
+	struct structure_material const *material;
+	word vertex_indices[3];
 };
 
 /* what the frames were drawn with on the structure bsp loaded last: let go
@@ -2256,6 +2315,8 @@ static struct
 	boolean vertices_contiguous;
 	struct structure_material *materials;
 	short material_count;
+	/* (the collision bsp's blocks the frames' boxes join) */
+	void *collision[2];
 } gearbox_frames_made;
 
 static struct gearbox_frame_triangle gearbox_frame_triangles[MAXIMUM_GEARBOX_FRAME_TRIANGLES];
@@ -2282,6 +2343,10 @@ static void gearbox_frames_release(
 	}
 	if (gearbox_frames_made.blocks)
 		free(gearbox_frames_made.blocks);
+	if (gearbox_frames_made.collision[0])
+		free(gearbox_frames_made.collision[0]);
+	if (gearbox_frames_made.collision[1])
+		free(gearbox_frames_made.collision[1]);
 	memset(&gearbox_frames_made, 0, sizeof(gearbox_frames_made));
 
 	return;
@@ -2427,7 +2492,8 @@ static real gearbox_triangle_nearest(
 	return distance;
 }
 
-/* the Xbox map's triangles near the frames, into gearbox_frames_nearby */
+/* the Xbox map's triangles near the frames and the frames they are lit as,
+into gearbox_frames_nearby */
 static long gearbox_frames_gather_nearby(
 	struct structure_bsp const *structure_bsp,
 	struct gearbox_map_frames const *frames)
@@ -2478,16 +2544,23 @@ static long gearbox_frames_gather_nearby(
 					x += nearby->corners[corner].x / 3.0f;
 					y += nearby->corners[corner].y / 3.0f;
 				}
-				for (frame = 0; frame < frames->count; frame++)
+				for (frame = 0; frame < 2 * frames->count; frame++)
 				{
-					real dx = x - frames->teleporters[frame].x, dy = y - frames->teleporters[frame].y;
+					real_point3d const *place = frame < frames->count ? &frames->frames[frame].position :
+						&frames->frames[frame - frames->count].lit_position;
+					real dx = x - place->x, dy = y - place->y;
 
 					if (dx * dx + dy * dy <= (frames->radius + GEARBOX_FRAME_NEARBY) * (frames->radius + GEARBOX_FRAME_NEARBY))
 						break;
 				}
-				if (frame == frames->count)
+				if (frame == 2 * frames->count)
 					continue;
-				nearby->frame = frame;
+				nearby->lit_source = frame >= frames->count;
+				nearby->frame = frame % frames->count;
+				nearby->material = material;
+				nearby->vertex_indices[0] = corner_indices[0];
+				nearby->vertex_indices[1] = corner_indices[1];
+				nearby->vertex_indices[2] = corner_indices[2];
 				nearby->lightmap = lit ? (short)lightmap_index : NONE;
 				for (corner = 0; lit && corner < 3; corner++)
 				{
@@ -2523,7 +2596,7 @@ static boolean gearbox_frame_triangle_on_xbox(
 		{
 			real weights[3];
 
-			if (gearbox_frames_nearby[index].frame == triangle->frame &&
+			if (gearbox_frames_nearby[index].frame == triangle->frame && !gearbox_frames_nearby[index].lit_source &&
 				gearbox_triangle_nearest(&triangle->vertices[corner].position, gearbox_frames_nearby[index].corners, weights) <
 					GEARBOX_FRAME_ON_SURFACE * GEARBOX_FRAME_ON_SURFACE)
 			{
@@ -2606,10 +2679,10 @@ static long gearbox_frames_pick(
 				}
 				for (frame = 0; frame < frames->count; frame++)
 				{
-					real dx = x - frames->teleporters[frame].x, dy = y - frames->teleporters[frame].y;
+					real_point3d const *place = &frames->frames[frame].position;
+					real dx = x - place->x, dy = y - place->y;
 
-					if (dx * dx + dy * dy <= frames->radius * frames->radius &&
-						top > frames->teleporters[frame].z + GEARBOX_FRAME_FLOOR)
+					if (dx * dx + dy * dy <= frames->radius * frames->radius && top > place->z + GEARBOX_FRAME_FLOOR)
 					{
 						break;
 					}
@@ -2618,6 +2691,7 @@ static long gearbox_frames_pick(
 					continue;
 				triangle->frame = frame;
 				triangle->shader = shader;
+				triangle->copied = FALSE;
 				if (gearbox_frame_triangle_on_xbox(triangle, nearby_count))
 					continue;
 				if (++count == MAXIMUM_GEARBOX_FRAME_TRIANGLES)
@@ -2655,6 +2729,697 @@ static real_point2d gearbox_frame_lightmap_texcoord(
 	return texcoord;
 }
 
+/* the lightmap place for a corner of a frame, its face's normal `normal`,
+lit as the Xbox map's own frame of the same shape is (gearbox_map_frame):
+the corner turned and moved onto that frame, at the nearest point of its
+surfaces facing the same way (any of them, none facing so) in its lightmap
+`lightmap`, a little way to its triangle's middle */
+static real_point2d gearbox_frame_lit_texcoord(
+	struct gearbox_map_frame const *definition,
+	short frame,
+	short lightmap,
+	long nearby_count,
+	real_point3d const *point,
+	real_vector3d const *normal)
+{
+	real turn = definition->lit_yaw - definition->yaw;
+	real c = cosine(turn), s = sine(turn);
+	real dx = point->x - definition->position.x, dy = point->y - definition->position.y;
+	real best_distance = -1.0f, any_distance = -1.0f;
+	real best_weights[3], any_weights[3];
+	long best = NONE, any = NONE, index;
+	real_point3d moved;
+	real_vector3d turned;
+	real_point2d texcoord;
+	short corner;
+
+	moved.x = definition->lit_position.x + c * dx - s * dy;
+	moved.y = definition->lit_position.y + s * dx + c * dy;
+	moved.z = point->z - definition->position.z + definition->lit_position.z;
+	turned.i = c * normal->i - s * normal->j;
+	turned.j = s * normal->i + c * normal->j;
+	turned.k = normal->k;
+	for (index = 0; index < nearby_count; index++)
+	{
+		struct gearbox_frame_nearby const *nearby = &gearbox_frames_nearby[index];
+		real_point3d const *q = nearby->corners;
+		real nx = (q[1].y - q[0].y) * (q[2].z - q[0].z) - (q[1].z - q[0].z) * (q[2].y - q[0].y);
+		real ny = (q[1].z - q[0].z) * (q[2].x - q[0].x) - (q[1].x - q[0].x) * (q[2].z - q[0].z);
+		real nz = (q[1].x - q[0].x) * (q[2].y - q[0].y) - (q[1].y - q[0].y) * (q[2].x - q[0].x);
+		real along = nx * turned.i + ny * turned.j + nz * turned.k;
+		real weights[3];
+		real distance;
+
+		if (nearby->frame != frame || !nearby->lit_source || nearby->lightmap != lightmap)
+			continue;
+		distance = gearbox_triangle_nearest(&moved, nearby->corners, weights);
+		if (any == NONE || distance < any_distance)
+		{
+			any = index;
+			any_distance = distance;
+			any_weights[0] = weights[0];
+			any_weights[1] = weights[1];
+			any_weights[2] = weights[2];
+		}
+		/* (facing the same way: within some 25 degrees) */
+		if (along > 0.0f && along * along > 0.81f * (nx * nx + ny * ny + nz * nz) &&
+			(best == NONE || distance < best_distance))
+		{
+			best = index;
+			best_distance = distance;
+			best_weights[0] = weights[0];
+			best_weights[1] = weights[1];
+			best_weights[2] = weights[2];
+		}
+	}
+	if (best == NONE)
+	{
+		best = any;
+		best_weights[0] = any_weights[0];
+		best_weights[1] = any_weights[1];
+		best_weights[2] = any_weights[2];
+	}
+	texcoord.x = texcoord.y = 0.0f;
+	for (corner = 0; best != NONE && corner < 3; corner++)
+	{
+		real weight = best_weights[corner] * 0.96f + 0.04f / 3.0f;
+
+		texcoord.x += gearbox_frames_nearby[best].lightmap_texcoords[corner].x * weight;
+		texcoord.y += gearbox_frames_nearby[best].lightmap_texcoords[corner].y * weight;
+	}
+
+	return texcoord;
+}
+
+/* The Xbox map's own frames' lit triangles that the frames are lit as
+(gearbox_map_frame), copied onto them: those of its frame's shaders in the
+lightmap `lit_lightmaps` names, turned and moved onto the frame, whose
+corners all lie on Halo PC's triangles of the frame (gearbox_frames_pick),
+and its doorway's back, brought in front of the wall it stands at, with
+their own texture and lightmap places, after those in
+gearbox_frame_triangles. (Halo PC's are cut otherwise: the lightmap places
+of the Xbox frame's surfaces at their corners are of different parts of the
+lightmap, and a face's texels between them are other surfaces'.) */
+static long gearbox_frames_copy(
+	struct gearbox_map_frames const *frames,
+	short const *lit_lightmaps,
+	long const *shader_handles,
+	long triangle_count,
+	long nearby_count,
+	boolean *copied)
+{
+	long vertex_size = rasterizer_geometry_get_vertex_size(_rasterizer_vertex_type_environment_compressed);
+	long lightmap_vertex_size = rasterizer_geometry_get_vertex_size(_rasterizer_vertex_type_environment_lightmap_compressed);
+	long picked_count = triangle_count, index;
+	short frame;
+
+	for (frame = 0; frame < frames->count; frame++)
+		copied[frame] = FALSE;
+	for (index = 0; index < nearby_count && triangle_count < MAXIMUM_GEARBOX_FRAME_TRIANGLES; index++)
+	{
+		struct gearbox_frame_nearby const *nearby = &gearbox_frames_nearby[index];
+		struct structure_material const *material = nearby->material;
+		struct gearbox_frame_triangle *triangle = &gearbox_frame_triangles[triangle_count];
+		struct gearbox_map_frame const *definition;
+		byte const *vertices;
+		real turn, c, s;
+		short shader, corner;
+
+		if (!nearby->lit_source || nearby->lightmap == NONE || nearby->lightmap != lit_lightmaps[nearby->frame] ||
+			!material || material->lightmap_vertices.count != material->vertices.count)
+		{
+			continue;
+		}
+		for (shader = 0; shader < frames->shader_count && shader_handles[shader] != material->shader.index; shader++)
+			;
+		if (shader == frames->shader_count)
+			continue;
+		definition = &frames->frames[nearby->frame];
+		turn = definition->yaw - definition->lit_yaw;
+		c = cosine(turn);
+		s = sine(turn);
+		vertices = (byte const *)material->compressed_vertex_data.address;
+		for (corner = 0; corner < 3; corner++)
+		{
+			byte const *vertex = vertices + nearby->vertex_indices[corner] * vertex_size;
+			byte const *lightmap_vertex = vertices + material->vertices.count * vertex_size +
+				nearby->vertex_indices[corner] * lightmap_vertex_size;
+			struct gearbox_environment_vertex *made = &triangle->vertices[corner];
+			real_vector3d *vectors[4];
+			unsigned long packed[4];
+			real_point3d position;
+			short texcoord[2];
+			short vector;
+			real dx, dy;
+
+			memcpy(&position, vertex, sizeof(position));
+			memcpy(packed, vertex + 12, 3 * sizeof(unsigned long));
+			memcpy(&made->texcoord, vertex + 24, sizeof(made->texcoord));
+			memcpy(&packed[3], lightmap_vertex, sizeof(unsigned long));
+			memcpy(texcoord, lightmap_vertex + 4, sizeof(texcoord));
+			dx = position.x - definition->lit_position.x;
+			dy = position.y - definition->lit_position.y;
+			made->position.x = definition->position.x + c * dx - s * dy;
+			made->position.y = definition->position.y + s * dx + c * dy;
+			made->position.z = position.z - definition->lit_position.z + definition->position.z;
+			vectors[0] = &made->normal;
+			vectors[1] = &made->binormal;
+			vectors[2] = &made->tangent;
+			vectors[3] = &triangle->incident[corner];
+			for (vector = 0; vector < 4; vector++)
+			{
+				real_vector3d unpacked = uncompress_int32_to_real_vector3d(packed[vector]);
+
+				vectors[vector]->i = c * unpacked.i - s * unpacked.j;
+				vectors[vector]->j = s * unpacked.i + c * unpacked.j;
+				vectors[vector]->k = unpacked.k;
+			}
+			triangle->lightmap_texcoords[corner].x = ((real)texcoord[0] + 0.5f) / 32767.5f;
+			triangle->lightmap_texcoords[corner].y = ((real)texcoord[1] + 0.5f) / 32767.5f;
+		}
+		/* (the doorway's back: within the doorway, behind the frame's front,
+		drawn at back_depth) */
+		{
+			real forward_x = cosine(definition->yaw), forward_y = sine(definition->yaw);
+			real deepest = -1.0e6f;
+
+			for (corner = 0; corner < 3; corner++)
+			{
+				real px = triangle->vertices[corner].position.x - definition->position.x;
+				real py = triangle->vertices[corner].position.y - definition->position.y;
+				real across = -forward_y * px + forward_x * py, depth = forward_x * px + forward_y * py;
+
+				if (across > frames->doorway || across < -frames->doorway || depth < frames->back_depth - 0.1f)
+					break;
+				deepest = MAX(deepest, depth);
+			}
+			if (corner == 3)
+			{
+				for (corner = 0; corner < 3; corner++)
+				{
+					triangle->vertices[corner].position.x -= forward_x * (deepest - frames->back_depth);
+					triangle->vertices[corner].position.y -= forward_y * (deepest - frames->back_depth);
+				}
+				triangle->frame = nearby->frame;
+				triangle->shader = shader;
+				triangle->copied = TRUE;
+				copied[nearby->frame] = TRUE;
+				triangle_count++;
+				continue;
+			}
+		}
+		/* (on Halo PC's frame: its corners, middle and edges' middles each on
+		one of its triangles; one with its corners on the frame's edges may
+		cross the doorway) */
+		for (corner = 0; corner < 7; corner++)
+		{
+			real_point3d const *a = &triangle->vertices[corner % 3].position;
+			real_point3d const *b = &triangle->vertices[(corner + 1) % 3].position;
+			real_point3d const *d = &triangle->vertices[(corner + 2) % 3].position;
+			real_point3d point;
+			long picked;
+
+			if (corner < 3)
+			{
+				point = *a;
+			}
+			else if (corner < 6)
+			{
+				point.x = (a->x + b->x) / 2.0f;
+				point.y = (a->y + b->y) / 2.0f;
+				point.z = (a->z + b->z) / 2.0f;
+			}
+			else
+			{
+				point.x = (a->x + b->x + d->x) / 3.0f;
+				point.y = (a->y + b->y + d->y) / 3.0f;
+				point.z = (a->z + b->z + d->z) / 3.0f;
+			}
+			for (picked = 0; picked < picked_count; picked++)
+			{
+				struct gearbox_frame_triangle const *other = &gearbox_frame_triangles[picked];
+				real_point3d other_corners[3];
+				real weights[3];
+
+				if (other->frame != nearby->frame)
+					continue;
+				other_corners[0] = other->vertices[0].position;
+				other_corners[1] = other->vertices[1].position;
+				other_corners[2] = other->vertices[2].position;
+				if (gearbox_triangle_nearest(&point, other_corners, weights) <
+					GEARBOX_FRAME_COPY_NEAR * GEARBOX_FRAME_COPY_NEAR)
+				{
+					break;
+				}
+			}
+			if (picked == picked_count)
+				break;
+		}
+		if (corner < 7)
+			continue;
+		triangle->frame = nearby->frame;
+		triangle->shader = shader;
+		triangle->copied = TRUE;
+		copied[nearby->frame] = TRUE;
+		triangle_count++;
+	}
+
+	return triangle_count;
+}
+
+/* (a box's corner: across, into the wall and up, each its lower or upper
+end) */
+#define GEARBOX_BOX_CORNER(across, depth, height) ((across) + 2 * (depth) + 4 * (height))
+
+/* a leaf of the collision bsp that a box's faces split, at a node's child
+(the leaf, and the box) */
+struct gearbox_frame_slot
+{
+	long node;
+	short child;
+	short box;
+	long leaf;
+};
+
+static struct gearbox_frame_slot gearbox_frame_slots[MAXIMUM_GEARBOX_FRAME_SLOTS];
+
+/* the box's eight corners and six faces' planes (facing out), in the world */
+static void gearbox_frame_box_place(
+	struct gearbox_map_frame const *frame,
+	struct gearbox_frame_box const *box,
+	real_point3d *corners,
+	real_plane3d *planes)
+{
+	real c = cosine(frame->yaw), s = sine(frame->yaw);
+	short across, depth, height, face;
+
+	for (height = 0; height < 2; height++)
+	{
+		for (depth = 0; depth < 2; depth++)
+		{
+			for (across = 0; across < 2; across++)
+			{
+				real_point3d *corner = &corners[GEARBOX_BOX_CORNER(across, depth, height)];
+
+				corner->x = frame->position.x - s * box->across[across] + c * box->depth[depth];
+				corner->y = frame->position.y + c * box->across[across] + s * box->depth[depth];
+				corner->z = frame->position.z + box->height[height];
+			}
+		}
+	}
+	/* (across: -side and side; into the wall: -forward and forward; up:
+	down and up) */
+	planes[0].n.i = s; planes[0].n.j = -c; planes[0].n.k = 0.0f;
+	planes[1].n.i = -s; planes[1].n.j = c; planes[1].n.k = 0.0f;
+	planes[2].n.i = -c; planes[2].n.j = -s; planes[2].n.k = 0.0f;
+	planes[3].n.i = c; planes[3].n.j = s; planes[3].n.k = 0.0f;
+	planes[4].n.i = 0.0f; planes[4].n.j = 0.0f; planes[4].n.k = -1.0f;
+	planes[5].n.i = 0.0f; planes[5].n.j = 0.0f; planes[5].n.k = 1.0f;
+	for (face = 0; face < 6; face++)
+	{
+		/* (each face's plane passes through the corner at its end) */
+		real_point3d const *corner = &corners[GEARBOX_BOX_CORNER(face == 1, face == 3, face == 5)];
+
+		planes[face].d = planes[face].n.i * corner->x + planes[face].n.j * corner->y + planes[face].n.k * corner->z;
+	}
+
+	return;
+}
+
+/* The frames' boxes (gearbox_map_frames) made solid in the Xbox map's
+collision bsp: each leaf of empty space a box reaches is split by its six
+faces, in a chain of nodes whose outsides are the leaf and whose last
+inside is solid, and is given the faces' surfaces as references on their
+planes (a hit or a touch looks a surface up in the leaf it came from). The
+blocks they join are copies (nodes, planes, references, surfaces, edges,
+vertices); the leaves split are changed where they were read. FALSE: the
+bsp is as it was. */
+static boolean gearbox_frames_collide(
+	struct structure_bsp *structure_bsp,
+	struct gearbox_map_frames const *frames)
+{
+	static real_point3d corners[MAXIMUM_GEARBOX_FRAME_BOXES][8];
+	static short materials[MAXIMUM_GEARBOX_FRAMES];
+	struct collision_bsp *bsp;
+	long box_count = frames->count * frames->box_count;
+	long node_count, node_capacity, plane_base, slot_count = 0, reference_count, index;
+	long vertex_base, edge_base, surface_base;
+	struct bsp3d_node *nodes;
+	real_plane3d *planes;
+	struct bsp2d_reference_view
+	{
+		long plane_designator;
+		long root_index;
+	} *references;
+	struct collision_surface *surfaces;
+	struct collision_edge *edges;
+	struct collision_vertex *vertices;
+	struct gearbox_collision_leaf *leaves;
+	short box, frame;
+
+	if (structure_bsp->collision_bsp.count < 1 || box_count <= 0 || box_count > MAXIMUM_GEARBOX_FRAME_BOXES)
+		return FALSE;
+	bsp = TAG_BLOCK_GET_ELEMENT(&structure_bsp->collision_bsp, 0, struct collision_bsp);
+	leaves = (struct gearbox_collision_leaf *)bsp->leaves.address;
+
+	/* each frame's floor's material, for its boxes' faces */
+	for (frame = 0; frame < frames->count; frame++)
+	{
+		struct collision_bsp_test_vector_result result;
+		real_point3d above = frames->frames[frame].position;
+		real_vector3d down = { 0.0f, 0.0f, -1.0f };
+
+		above.z += 0.3f;
+		memset(&result, 0, sizeof(result));
+		materials[frame] = collision_bsp_test_vector(FLAG(_collision_test_front_facing_surfaces_bit), bsp, 0, NULL, &above,
+			&down, 1.0f, &result) ? result.material_index : 0;
+	}
+
+	node_count = bsp->bsp3d.nodes.count;
+	node_capacity = node_count + 6 * MAXIMUM_GEARBOX_FRAME_SLOTS;
+	plane_base = bsp->bsp3d.planes.count;
+	gearbox_frames_made.collision[0] = malloc(node_capacity * sizeof(*nodes) + (plane_base + 6 * box_count) * sizeof(*planes));
+	if (!gearbox_frames_made.collision[0])
+		return FALSE;
+	nodes = (struct bsp3d_node *)gearbox_frames_made.collision[0];
+	planes = (real_plane3d *)(nodes + node_capacity);
+	memcpy(nodes, bsp->bsp3d.nodes.address, node_count * sizeof(*nodes));
+	memcpy(planes, bsp->bsp3d.planes.address, plane_base * sizeof(*planes));
+
+	/* each box: its planes, the leaves it reaches (as the tree stands, the
+	boxes before it in it), and a chain of its faces at each */
+	for (box = 0; box < box_count; box++)
+	{
+		struct gearbox_map_frame const *definition = &frames->frames[box / frames->box_count];
+		long stack[256];
+		short stack_count = 0;
+		long first_slot = slot_count, visits = 0;
+
+		gearbox_frame_box_place(definition, &frames->boxes[box % frames->box_count], corners[box],
+			&planes[plane_base + 6 * box]);
+		stack[stack_count++] = 0;
+		while (stack_count > 0)
+		{
+			long node_index = stack[--stack_count];
+			struct bsp3d_node const *node;
+			real_plane3d const *plane;
+			boolean front = FALSE, back = FALSE;
+			short corner, child;
+
+			if (node_index < 0 || node_index >= node_count || ++visits > node_count)
+				return FALSE;
+			node = &nodes[node_index];
+			if (node->plane_designator < 0 || node->plane_designator >= plane_base + 6 * box_count)
+				return FALSE;
+			plane = &planes[node->plane_designator];
+			for (corner = 0; corner < 8; corner++)
+			{
+				if (plane3d_distance_to_point(plane, &corners[box][corner]) >= 0.0f)
+					front = TRUE;
+				else
+					back = TRUE;
+			}
+			for (child = 0; child < 2; child++)
+			{
+				long child_index = node->children[child];
+
+				if (!(child ? front : back))
+					continue;
+				if (child_index & LONG_MIN)
+				{
+					/* (a leaf of empty space; NONE is solid already) */
+					if (child_index == NONE || (child_index & LONG_MAX) >= bsp->leaves.count)
+						continue;
+					if (slot_count == MAXIMUM_GEARBOX_FRAME_SLOTS)
+						return FALSE;
+					gearbox_frame_slots[slot_count].node = node_index;
+					gearbox_frame_slots[slot_count].child = child;
+					gearbox_frame_slots[slot_count].box = box;
+					gearbox_frame_slots[slot_count].leaf = child_index & LONG_MAX;
+					slot_count++;
+				}
+				else if (stack_count < (short)NUMBEROF(stack))
+				{
+					stack[stack_count++] = child_index;
+				}
+				else
+				{
+					return FALSE;
+				}
+			}
+		}
+		for (index = first_slot; index < slot_count; index++)
+		{
+			struct gearbox_frame_slot const *slot = &gearbox_frame_slots[index];
+			short face;
+
+			if (node_count + 6 > node_capacity)
+				return FALSE;
+			nodes[slot->node].children[slot->child] = node_count;
+			for (face = 0; face < 6; face++)
+			{
+				nodes[node_count].plane_designator = plane_base + 6 * box + face;
+				nodes[node_count].children[1] = slot->leaf | LONG_MIN;
+				nodes[node_count].children[0] = face < 5 ? node_count + 1 : NONE;
+				node_count++;
+			}
+		}
+	}
+
+	/* the references: each leaf's own, then six of each box that splits it
+	(a box's faces' surfaces, on their planes, which face into the leaf) */
+	reference_count = bsp->bsp2d_references.count;
+	for (index = 0; index < slot_count; index++)
+	{
+		long other;
+
+		for (other = 0; other < index && gearbox_frame_slots[other].leaf != gearbox_frame_slots[index].leaf; other++)
+			;
+		if (other == index)
+			reference_count += leaves[gearbox_frame_slots[index].leaf].bsp2d_reference_count;
+		for (other = 0; other < index && (gearbox_frame_slots[other].leaf != gearbox_frame_slots[index].leaf ||
+			gearbox_frame_slots[other].box != gearbox_frame_slots[index].box); other++)
+			;
+		if (other == index)
+			reference_count += 6;
+	}
+	vertex_base = bsp->vertices.count;
+	edge_base = bsp->edges.count;
+	surface_base = bsp->surfaces.count;
+	gearbox_frames_made.collision[1] = malloc(reference_count * sizeof(*references) +
+		(surface_base + 6 * box_count) * sizeof(*surfaces) + (edge_base + 12 * box_count) * sizeof(*edges) +
+		(vertex_base + 8 * box_count) * sizeof(*vertices));
+	if (!gearbox_frames_made.collision[1])
+		return FALSE;
+	references = (struct bsp2d_reference_view *)gearbox_frames_made.collision[1];
+	surfaces = (struct collision_surface *)(references + reference_count);
+	edges = (struct collision_edge *)(surfaces + surface_base + 6 * box_count);
+	vertices = (struct collision_vertex *)(edges + edge_base + 12 * box_count);
+	memcpy(references, bsp->bsp2d_references.address, bsp->bsp2d_references.count * sizeof(*references));
+	memcpy(surfaces, bsp->surfaces.address, surface_base * sizeof(*surfaces));
+	memcpy(edges, bsp->edges.address, edge_base * sizeof(*edges));
+	memcpy(vertices, bsp->vertices.address, vertex_base * sizeof(*vertices));
+
+	/* each box's surfaces: its faces, each a ring of four edges turning
+	left about its outward normal, as the bsp's own are */
+	for (box = 0; box < box_count; box++)
+	{
+		real_plane3d const *box_planes = &planes[plane_base + 6 * box];
+		long box_vertices = vertex_base + 8 * box, box_edges = edge_base + 12 * box;
+		short rings[6][4];
+		short edge_count = 0, face, corner;
+
+		for (corner = 0; corner < 8; corner++)
+		{
+			vertices[box_vertices + corner].point = corners[box][corner];
+			vertices[box_vertices + corner].first_edge_index = NONE;
+		}
+		for (face = 0; face < 6; face++)
+		{
+			short axis = face / 2, end = face % 2, count = 0, k, j;
+			real angles[4];
+			real_vector3d const *n = &box_planes[face].n;
+			real_point3d middle;
+			real_vector3d u, v;
+			real length;
+
+			for (corner = 0; corner < 8; corner++)
+			{
+				if (((corner >> axis) & 1) == end)
+					rings[face][count++] = corner;
+			}
+			middle.x = middle.y = middle.z = 0.0f;
+			for (k = 0; k < 4; k++)
+			{
+				middle.x += corners[box][rings[face][k]].x / 4.0f;
+				middle.y += corners[box][rings[face][k]].y / 4.0f;
+				middle.z += corners[box][rings[face][k]].z / 4.0f;
+			}
+			u.i = corners[box][rings[face][0]].x - middle.x;
+			u.j = corners[box][rings[face][0]].y - middle.y;
+			u.k = corners[box][rings[face][0]].z - middle.z;
+			length = square_root(u.i * u.i + u.j * u.j + u.k * u.k);
+			if (length <= 0.0f)
+				return FALSE;
+			u.i /= length;
+			u.j /= length;
+			u.k /= length;
+			v.i = n->j * u.k - n->k * u.j;
+			v.j = n->k * u.i - n->i * u.k;
+			v.k = n->i * u.j - n->j * u.i;
+			for (k = 0; k < 4; k++)
+			{
+				real_point3d const *p = &corners[box][rings[face][k]];
+				real px = p->x - middle.x, py = p->y - middle.y, pz = p->z - middle.z;
+
+				angles[k] = arctangent(px * v.i + py * v.j + pz * v.k, px * u.i + py * u.j + pz * u.k);
+			}
+			/* (counterclockwise seen from outside: by angle about the normal) */
+			for (k = 1; k < 4; k++)
+			{
+				for (j = k; j > 0 && angles[j - 1] > angles[j]; j--)
+				{
+					real angle = angles[j];
+					short ring = rings[face][j];
+
+					angles[j] = angles[j - 1];
+					rings[face][j] = rings[face][j - 1];
+					angles[j - 1] = angle;
+					rings[face][j - 1] = ring;
+				}
+			}
+		}
+		/* the edges: each made by the first face that goes along it, the
+		other going back along it */
+		for (face = 0; face < 6; face++)
+		{
+			for (corner = 0; corner < 4; corner++)
+			{
+				long a = box_vertices + rings[face][corner], b = box_vertices + rings[face][(corner + 1) % 4];
+				short edge;
+
+				for (edge = 0; edge < edge_count; edge++)
+				{
+					if (edges[box_edges + edge].vertex_indices[0] == b && edges[box_edges + edge].vertex_indices[1] == a)
+						break;
+				}
+				if (edge < edge_count)
+				{
+					edges[box_edges + edge].surface_indices[1] = surface_base + 6 * box + face;
+					continue;
+				}
+				if (edge_count == 12)
+					return FALSE;
+				edges[box_edges + edge_count].vertex_indices[0] = a;
+				edges[box_edges + edge_count].vertex_indices[1] = b;
+				edges[box_edges + edge_count].surface_indices[0] = surface_base + 6 * box + face;
+				edges[box_edges + edge_count].surface_indices[1] = NONE;
+				edges[box_edges + edge_count].edge_indices[0] = edges[box_edges + edge_count].edge_indices[1] = NONE;
+				vertices[a].first_edge_index = box_edges + edge_count;
+				vertices[b].first_edge_index = box_edges + edge_count;
+				edge_count++;
+			}
+		}
+		if (edge_count != 12)
+			return FALSE;
+		/* each face's ring: from each edge to the next along it */
+		for (face = 0; face < 6; face++)
+		{
+			long ring_edges[4];
+			short sides[4];
+
+			for (corner = 0; corner < 4; corner++)
+			{
+				long a = box_vertices + rings[face][corner], b = box_vertices + rings[face][(corner + 1) % 4];
+				short edge;
+
+				for (edge = 0; edge < 12; edge++)
+				{
+					struct collision_edge const *e = &edges[box_edges + edge];
+
+					if ((e->vertex_indices[0] == a && e->vertex_indices[1] == b) ||
+						(e->vertex_indices[0] == b && e->vertex_indices[1] == a))
+					{
+						break;
+					}
+				}
+				if (edge == 12)
+					return FALSE;
+				ring_edges[corner] = box_edges + edge;
+				sides[corner] = edges[box_edges + edge].vertex_indices[0] == a ? 0 : 1;
+			}
+			for (corner = 0; corner < 4; corner++)
+				edges[ring_edges[corner]].edge_indices[sides[corner]] = ring_edges[(corner + 1) % 4];
+			surfaces[surface_base + 6 * box + face].plane_designator = plane_base + 6 * box + face;
+			surfaces[surface_base + 6 * box + face].first_edge_index = ring_edges[0];
+			surfaces[surface_base + 6 * box + face].flags = 0;
+			surfaces[surface_base + 6 * box + face].breakable_surface_index = 0;
+			surfaces[surface_base + 6 * box + face].material_index = materials[box / frames->box_count];
+		}
+	}
+
+	/* the leaves split: their references copied after the bsp's, with the
+	boxes' (none of the bsp changes before this: nothing can fail after) */
+	{
+		long written = bsp->bsp2d_references.count;
+
+		for (index = 0; index < slot_count; index++)
+		{
+			long leaf_index = gearbox_frame_slots[index].leaf;
+			struct gearbox_collision_leaf *leaf = &leaves[leaf_index];
+			long other, first = written;
+
+			for (other = 0; other < index && gearbox_frame_slots[other].leaf != leaf_index; other++)
+				;
+			if (other < index)
+				continue;
+			if (leaf->bsp2d_reference_count > 0)
+			{
+				memcpy(&references[written], &references[leaf->first_bsp2d_reference_index],
+					leaf->bsp2d_reference_count * sizeof(*references));
+				written += leaf->bsp2d_reference_count;
+			}
+			for (other = index; other < slot_count; other++)
+			{
+				long seen;
+				short face;
+
+				if (gearbox_frame_slots[other].leaf != leaf_index)
+					continue;
+				for (seen = index; seen < other && (gearbox_frame_slots[seen].leaf != leaf_index ||
+					gearbox_frame_slots[seen].box != gearbox_frame_slots[other].box); seen++)
+					;
+				if (seen < other)
+					continue;
+				for (face = 0; face < 6; face++)
+				{
+					references[written].plane_designator = plane_base + 6 * gearbox_frame_slots[other].box + face;
+					references[written].root_index = (surface_base + 6 * gearbox_frame_slots[other].box + face) | LONG_MIN;
+					written++;
+				}
+			}
+			leaf->first_bsp2d_reference_index = first;
+			leaf->bsp2d_reference_count = (short)(written - first);
+		}
+	}
+	bsp->bsp3d.nodes.count = node_count;
+	bsp->bsp3d.nodes.address = nodes;
+	bsp->bsp3d.planes.count = plane_base + 6 * box_count;
+	bsp->bsp3d.planes.address = planes;
+	bsp->bsp2d_references.count = reference_count;
+	bsp->bsp2d_references.address = references;
+	bsp->surfaces.count = surface_base + 6 * box_count;
+	bsp->surfaces.address = surfaces;
+	bsp->edges.count = edge_base + 12 * box_count;
+	bsp->edges.address = edges;
+	bsp->vertices.count = vertex_base + 8 * box_count;
+	bsp->vertices.address = vertices;
+	error(_error_silent, "gearbox items: the teleporters' frames made solid (%ld boxes splitting %ld leaves)", box_count,
+		slot_count);
+
+	return TRUE;
+}
+
 /* Halo PC's teleporter frames of the map (gearbox_map_frames) drawn on its
 own structure bsp, just loaded: its blocks they join are copies with them
 (its surfaces, lightmaps, and the frames' clusters' subclusters), and what
@@ -2673,8 +3438,13 @@ static void gearbox_frames_build(
 		struct structure_material const *template_material;
 		struct structure_lightmap const *lightmap;
 		boolean lit;
+		/* (its triangles the Xbox frame's copies, not Halo PC's) */
+		boolean copies;
 	} groups[MAXIMUM_GEARBOX_FRAME_GROUPS];
+	long shader_handles[MAXIMUM_GEARBOX_FRAME_GROUPS];
+	boolean copied[MAXIMUM_GEARBOX_FRAMES];
 	short room_lightmaps[MAXIMUM_GEARBOX_FRAMES];
+	short lit_lightmaps[MAXIMUM_GEARBOX_FRAMES];
 	long walls[MAXIMUM_GEARBOX_FRAMES];
 	short clusters[MAXIMUM_GEARBOX_FRAMES];
 	long frame_triangles[MAXIMUM_GEARBOX_FRAMES];
@@ -2687,20 +3457,44 @@ static void gearbox_frames_build(
 	char const *failure = NULL;
 
 	gearbox_frames_release();
-	if (!frames || !gearbox_barriers.loaded || frames->count > MAXIMUM_GEARBOX_FRAMES)
+	if (!frames || !gearbox_barriers.loaded || frames->count > MAXIMUM_GEARBOX_FRAMES ||
+		frames->shader_count > MAXIMUM_GEARBOX_FRAME_GROUPS)
+	{
 		return;
+	}
+	for (shader = 0; shader < frames->shader_count; shader++)
+		shader_handles[shader] = gearbox_shader_handle(frames->shaders[shader]);
 	nearby_count = gearbox_frames_gather_nearby(structure_bsp, frames);
 	triangle_count = gearbox_frames_pick(frames, nearby_count);
 
-	/* each frame's room: the cluster it stands in, and the wall behind it
-	(the lit upright surface nearest a little above its floor), whose
-	lightmap lights it */
+	/* each frame's room: the cluster it stands in, the lightmap of the frame
+	it is lit as (of its surface nearest a little above its floor), and the
+	wall behind it (the room's lit upright surface nearest a little above
+	its floor), whose lightmap lights it if that frame's cannot */
 	for (frame = 0; frame < frames->count; frame++)
 	{
-		real_point3d above = frames->teleporters[frame];
-		real nearest = -1.0f;
+		real_point3d above = frames->frames[frame].position;
+		real_point3d lit_above = frames->frames[frame].lit_position;
+		real nearest = -1.0f, lit_nearest = -1.0f;
 
 		above.z += 0.5f;
+		lit_above.z += 0.5f;
+		lit_lightmaps[frame] = NONE;
+		for (index = 0; index < nearby_count; index++)
+		{
+			struct gearbox_frame_nearby const *nearby = &gearbox_frames_nearby[index];
+			real weights[3];
+			real distance;
+
+			if (nearby->frame != frame || !nearby->lit_source || nearby->lightmap == NONE)
+				continue;
+			distance = gearbox_triangle_nearest(&lit_above, nearby->corners, weights);
+			if (lit_nearest < 0.0f || distance < lit_nearest)
+			{
+				lit_nearest = distance;
+				lit_lightmaps[frame] = nearby->lightmap;
+			}
+		}
 		clusters[frame] = (short)cluster_index_from_point(structure_bsp, &above);
 		room_lightmaps[frame] = NONE;
 		walls[frame] = NONE;
@@ -2716,7 +3510,8 @@ static void gearbox_frames_build(
 			real distance;
 
 			/* (upright: its normal less than a third up or down) */
-			if (nearby->frame != frame || nearby->lightmap == NONE || 9.0f * nz * nz > nx * nx + ny * ny + nz * nz)
+			if (nearby->frame != frame || nearby->lit_source || nearby->lightmap == NONE ||
+				9.0f * nz * nz > nx * nx + ny * ny + nz * nz)
 				continue;
 			distance = gearbox_triangle_nearest(&above, nearby->corners, weights);
 			if (nearest < 0.0f || distance < nearest)
@@ -2728,21 +3523,25 @@ static void gearbox_frames_build(
 		}
 	}
 
+	/* the Xbox frames' lit triangles copied onto the frames */
+	triangle_count = gearbox_frames_copy(frames, lit_lightmaps, shader_handles, triangle_count, nearby_count, copied);
+
 	/* a material for each frame's triangles of each shader: a copy of the
-	Xbox map's of the shader (in the room's lightmap, if it has one there),
-	in a lightmap of its own (the room's, or that material's) */
+	Xbox map's of the shader (in the lightmap it is lit from, if it has one
+	there), in a lightmap of its own (that one, or that material's); a lit
+	one's triangles the Xbox frame's copies where there are any */
 	for (frame = 0; frame < frames->count; frame++)
 	{
 		for (shader = 0; shader < frames->shader_count; shader++)
 		{
-			long count = 0, handle = gearbox_shader_handle(frames->shaders[shader]);
+			long count = 0, handle = shader_handles[shader];
+			short frame_lightmap = lit_lightmaps[frame] != NONE ? lit_lightmaps[frame] : room_lightmaps[frame];
+			boolean copies;
 			struct structure_material const *template_material = NULL;
 			struct structure_lightmap const *template_lightmap = NULL;
 			long lightmap_index;
 
-			for (index = 0; index < triangle_count; index++)
-				count += gearbox_frame_triangles[index].frame == frame && gearbox_frame_triangles[index].shader == shader;
-			if (!count || handle == NONE || clusters[frame] == NONE)
+			if (handle == NONE || clusters[frame] == NONE)
 				continue;
 			for (lightmap_index = 0; lightmap_index < structure_bsp->lightmaps.count; lightmap_index++)
 			{
@@ -2756,7 +3555,7 @@ static void gearbox_frames_build(
 						struct structure_material);
 
 					if (material->shader.index == handle &&
-						(!template_material || lightmap_index == room_lightmaps[frame]))
+						(!template_material || lightmap_index == frame_lightmap))
 					{
 						template_material = material;
 						template_lightmap = lightmap;
@@ -2765,15 +3564,24 @@ static void gearbox_frames_build(
 			}
 			if (!template_material || group_count == MAXIMUM_GEARBOX_FRAME_GROUPS)
 				continue;
+			copies = template_material->lightmap_vertices.count > 0 && copied[frame];
+			for (index = 0; index < triangle_count; index++)
+			{
+				count += gearbox_frame_triangles[index].frame == frame && gearbox_frame_triangles[index].shader == shader &&
+					gearbox_frame_triangles[index].copied == copies;
+			}
+			if (!count)
+				continue;
+			groups[group_count].copies = copies;
 			groups[group_count].frame = frame;
 			groups[group_count].shader = shader;
 			groups[group_count].triangle_count = count;
 			groups[group_count].template_material = template_material;
 			groups[group_count].lit = template_material->lightmap_vertices.count > 0;
-			if (groups[group_count].lit && room_lightmaps[frame] == NONE)
+			if (groups[group_count].lit && frame_lightmap == NONE)
 				continue;
 			groups[group_count].lightmap = groups[group_count].lit ?
-				TAG_BLOCK_GET_ELEMENT(&structure_bsp->lightmaps, room_lightmaps[frame], struct structure_lightmap) :
+				TAG_BLOCK_GET_ELEMENT(&structure_bsp->lightmaps, frame_lightmap, struct structure_lightmap) :
 				template_lightmap;
 			vertices_size += 3 * count * (vertex_size + (groups[group_count].lit ? lightmap_vertex_size : 0));
 			drawn_count += count;
@@ -2850,20 +3658,36 @@ static void gearbox_frames_build(
 			for (index = 0; index < triangle_count; index++)
 			{
 				struct gearbox_frame_triangle const *triangle = &gearbox_frame_triangles[index];
+				real_point3d const *p = &triangle->vertices[0].position;
+				real_point3d const *q = &triangle->vertices[1].position;
+				real_point3d const *r = &triangle->vertices[2].position;
+				real_vector3d normal;
 				short corner;
 
-				if (triangle->frame != groups[group].frame || triangle->shader != groups[group].shader)
+				if (triangle->frame != groups[group].frame || triangle->shader != groups[group].shader ||
+					triangle->copied != groups[group].copies)
+				{
 					continue;
+				}
+				normal.i = (q->y - p->y) * (r->z - p->z) - (q->z - p->z) * (r->y - p->y);
+				normal.j = (q->z - p->z) * (r->x - p->x) - (q->x - p->x) * (r->z - p->z);
+				normal.k = (q->x - p->x) * (r->y - p->y) - (q->y - p->y) * (r->x - p->x);
 				for (corner = 0; corner < 3; corner++)
 				{
 					struct gearbox_lightmap_vertex *lightmap_vertex = &gearbox_frame_lightmap_vertices[vertex_count];
 
 					gearbox_frame_vertices[vertex_count] = triangle->vertices[corner];
 					lightmap_vertex->incident_radiosity = triangle->incident[corner];
-					lightmap_vertex->texcoord = groups[group].lit ?
-						gearbox_frame_lightmap_texcoord(&triangle->vertices[corner].position,
-							&gearbox_frames_nearby[walls[triangle->frame]]) :
-						triangle->vertices[corner].texcoord;
+					if (!groups[group].lit)
+						lightmap_vertex->texcoord = triangle->vertices[corner].texcoord;
+					else if (triangle->copied)
+						lightmap_vertex->texcoord = triangle->lightmap_texcoords[corner];
+					else if (lit_lightmaps[triangle->frame] != NONE)
+						lightmap_vertex->texcoord = gearbox_frame_lit_texcoord(&frames->frames[triangle->frame], triangle->frame,
+							lit_lightmaps[triangle->frame], nearby_count, &triangle->vertices[corner].position, &normal);
+					else
+						lightmap_vertex->texcoord = gearbox_frame_lightmap_texcoord(&triangle->vertices[corner].position,
+							&gearbox_frames_nearby[walls[triangle->frame]]);
 					centroid.x += triangle->vertices[corner].position.x;
 					centroid.y += triangle->vertices[corner].position.y;
 					centroid.z += triangle->vertices[corner].position.z;
@@ -2945,8 +3769,11 @@ static void gearbox_frames_build(
 				{
 					struct gearbox_frame_triangle const *triangle = &gearbox_frame_triangles[index];
 
-					if (triangle->frame != frame || triangle->shader != groups[group].shader)
+					if (triangle->frame != frame || triangle->shader != groups[group].shader ||
+						triangle->copied != groups[group].copies)
+					{
 						continue;
+					}
 					surface_indices[indices_written++] = material->first_surface_index + triangle_index++;
 					for (corner = 0; corner < 3; corner++)
 					{
@@ -2973,6 +3800,8 @@ static void gearbox_frames_build(
 	structure_bsp->lightmaps.address = lightmaps;
 	error(_error_silent, "gearbox items: %ld triangles of Halo PC's teleporter frames drawn (%d materials)", drawn_count,
 		group_count);
+	if (frames->box_count > 0 && !gearbox_frames_collide(structure_bsp, frames))
+		error(_error_silent, "gearbox items: the teleporters' frames are not solid: their boxes do not fit the collision bsp");
 
 	return;
 }

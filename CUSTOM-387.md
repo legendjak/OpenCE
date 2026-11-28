@@ -132,12 +132,19 @@ after a load), as their reviews asked.
   the Xbox's as decals: copies of Sidewinder's stripe decal with Halo PC's
   arrow bitmaps, added to the tag table, and placed in the clusters of the
   floor under them in the structure BSP's runtime decals as it loads. The
-  frames around the teleporters Gearbox moved (two columns, a lintel and a
-  green light) are Halo PC's triangles of their shaders there, less those on
-  the Xbox's own surfaces, added to the Xbox's structure BSP as it loads: new
-  materials (copies of its own of the shaders) in lightmaps after its
-  others, a subcluster in each room's cluster, lit from the room's wall
-  behind them. They are drawn only: the collision BSP has them not. On
+  frames around the teleporters Gearbox moved (two columns, a lintel, and a
+  green light in Halo PC's) are added to the Xbox's structure BSP as it
+  loads: the Xbox's own frames of its side teleporters are of the same shape
+  (to within 0.03, turned by the fields' ways), so their triangles that lie
+  on Halo PC's frame there, and their doorway's back (brought in front of
+  the room's wall), are copied there with their texture and lightmap places
+  (green inside, as theirs), and Halo PC's green light with them: new
+  materials (copies of the Xbox's of the shaders) in lightmaps after its
+  others, and a subcluster in each room's cluster. They are solid: three
+  boxes (columns and lintel) split the collision BSP's leaves they reach
+  with chains of their faces' planes, and give those leaves the faces'
+  surfaces. Sidewinder's needlers are Halo PC's, beside the frames, where
+  the Xbox's would stand in their columns. On
   Blood Gulch and Sidewinder a Banshee is held at a flying ceiling (10.5 and
   1). On Blood Gulch its camera stays below the lowest of the walls around
   the map (13.4, found by filling the map's height map from inside), so
