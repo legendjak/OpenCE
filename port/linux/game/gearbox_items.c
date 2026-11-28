@@ -62,6 +62,8 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 #include "physics/bsp2d.h"
 #include "physics/collision_bsp.h"
 #include "physics/collision_bsp_definitions.h"
+#include "effects/decal_definitions.h"
+#include "structures/structures.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -73,8 +75,9 @@ and a machine whose value differs cannot join it (cache_files_map_present).
 /* the import's own part of a map's version: a build that imports otherwise
 records another */
 #define GEARBOX_ITEMS_FORMAT 0x47425831UL
-/* and with Gearbox's changes to the map (gearbox_map_change_find) */
-#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435831UL
+/* and with Gearbox's changes to the map (gearbox_map_change_find; 2: with
+Sidewinder's arrows, whose decals' tags are added to the table) */
+#define GEARBOX_MAP_CHANGES_FORMAT 0x4D435832UL
 
 #define MAP_PATH_SIZE 256
 
@@ -101,6 +104,12 @@ records another */
 /* the most placements taken from the Halo PC map (its maps have at most 8
 of the items' vehicles and 4 of their weapons) */
 #define MAXIMUM_GEARBOX_PLACEMENTS 64
+
+/* the most tags made for Gearbox's changes to a map (its arrows' decals),
+arrows on a map, and runtime decals of a structure bsp with them */
+#define MAXIMUM_GEARBOX_MADE_TAGS 4
+#define MAXIMUM_GEARBOX_ARROWS 8
+#define MAXIMUM_GEARBOX_RUNTIME_DECALS 1024
 
 /* the Xbox map's blocks the animation grafts may replace, and the buffers
 they may make */
@@ -224,6 +233,10 @@ struct gearbox_import
 	/* a donor bitmap (absolute index) added beside the Xbox map's of its name
 	however alike they are (Halo PC's structure bsp's lightmaps), or NONE */
 	long own_index;
+	/* the tags made for the map's changes (its arrows' decals), added to the
+	grown table as the donor's are */
+	struct cache_file_tag_instance made[MAXIMUM_GEARBOX_MADE_TAGS];
+	short made_count;
 	boolean failed;
 };
 
@@ -1089,6 +1102,8 @@ static boolean gearbox_import_table(
 		}
 		donor_handles[absolute_index] = donor->tag_index;
 	}
+	for (index = 0; index < import->made_count; index++)
+		instances[DATUM_INDEX_TO_ABSOLUTE_INDEX(import->made[index].tag_index)] = import->made[index];
 	gearbox_items_globals.original_instances = import->xbox_instances;
 	gearbox_items_globals.original_count = import->xbox_count;
 	gearbox_items_globals.instances = instances;
@@ -1636,6 +1651,29 @@ static long gearbox_import_string_lists(
 
 /* ---- Gearbox's changes to the Xbox's maps (game.gearbox_map_changes) */
 
+/* an arrow Gearbox painted on a map's floor, in Halo PC's structure bsp:
+drawn on the Xbox map's as a decal, a copy of one of the Xbox map's with the
+Halo PC map's bitmap of the arrow (its tip to the bitmap's top) */
+struct gearbox_map_arrow
+{
+	char const *bitmap;
+	/* the decal's name */
+	char const *decal;
+	/* the arrow's middle on the floor, the way its tip points, and half its
+	size */
+	real_point3d position;
+	real_vector2d tip;
+	real radius;
+};
+
+/* a map's arrows, and the Xbox map's decal theirs are copies of */
+struct gearbox_map_arrows
+{
+	char const *template_decal;
+	struct gearbox_map_arrow const *arrows;
+	short count;
+};
+
 /* the scenery and netgame equipment placements Gearbox changed on a map: of
 the scenery (by its tag) and item collections listed, the Halo PC map's
 placements stand for the Xbox map's (none, where it has none), and with
@@ -1653,6 +1691,8 @@ struct gearbox_map_change
 	boolean structure_bsp;
 	char const *const *bsp_scenery;
 	boolean bsp_no_decals;
+	/* with the Xbox map's structure bsp, Halo PC's arrows on it, or NULL */
+	struct gearbox_map_arrows const *arrows;
 };
 
 /* the Halo PC map's placements an import takes for a map's changes (indices
@@ -1701,18 +1741,77 @@ static char const *const gearbox_sidewinder_bsp_scenery[] =
 	NULL
 };
 
+/* Sidewinder's arrows to its teleporters: a red and a blue one to those to
+the bases, and a white one to each of the two between its sides (Halo PC's
+`dangercanyon_arrow` shaders' triangles, square: Halo PC's are 15% longer
+than wide) */
+static struct gearbox_map_arrow const gearbox_sidewinder_arrow_list[] =
+{
+	{ "levels\\test\\dangercanyon\\bitmaps\\dangercanyon_arrow_red",
+		"levels\\test\\sidewinder\\decals-environment\\arrow_red", { -51.42f, 24.45f, 0.13f }, { -0.42f, -0.91f }, 0.63f },
+	{ "levels\\test\\dangercanyon\\bitmaps\\dangercanyon_arrow_white",
+		"levels\\test\\sidewinder\\decals-environment\\arrow_white", { -42.15f, 44.34f, 0.13f }, { 0.42f, 0.91f }, 0.70f },
+	{ "levels\\test\\dangercanyon\\bitmaps\\dangercanyon_arrow_white",
+		"levels\\test\\sidewinder\\decals-environment\\arrow_white", { 42.01f, 44.17f, 0.13f }, { -0.42f, 0.91f }, 0.70f },
+	{ "levels\\test\\dangercanyon\\bitmaps\\dangercanyon_arrow_blue",
+		"levels\\test\\sidewinder\\decals-environment\\arrow_blue", { 51.11f, 24.66f, 0.13f }, { 0.42f, -0.91f }, 0.63f },
+};
+static struct gearbox_map_arrows const gearbox_sidewinder_arrows =
+{
+	/* (its painted stripes: drawn added, as Halo PC's arrows are) */
+	"levels\\test\\sidewinder\\decals-environment\\fore_stripe_red",
+	gearbox_sidewinder_arrow_list,
+	(short)NUMBEROF(gearbox_sidewinder_arrow_list)
+};
+
 /* (Halo PC's structure bsps: Blood Gulch's small cliff walkable, Battle
 Creek's side windows smaller) */
 static struct gearbox_map_change const gearbox_map_changes[] =
 {
-	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE },
-	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE },
+	{ "bloodgulch", gearbox_bloodgulch_scenery, NULL, FALSE, TRUE, NULL, FALSE, NULL },
+	{ "beavercreek", NULL, NULL, FALSE, TRUE, NULL, FALSE, NULL },
 	/* (Sidewinder's own structure bsp: Halo PC's has its thick pillars,
 	teleporter rooms and arrows, but not the Xbox's lightmaps' shadows of its
-	trees and cliffs) */
+	trees and cliffs; its arrows are drawn on the Xbox's) */
 	{ "sidewinder", gearbox_sidewinder_scenery, gearbox_sidewinder_equipment, TRUE, FALSE,
-		gearbox_sidewinder_bsp_scenery, TRUE },
+		gearbox_sidewinder_bsp_scenery, TRUE, &gearbox_sidewinder_arrows },
 };
+
+/* (decals.c's decal definition: the fields an arrow's sets) */
+struct gearbox_decal_definition
+{
+	word flags;
+	short type;
+	short layer;
+	word pad;
+	struct tag_reference next_decal_in_chain;
+	real radius_lower_bound;
+	real radius_upper_bound;
+	byte unused020[0xD8 - 0x20];
+	struct tag_reference map;
+	byte unused0E8[0x10C - 0xE8];
+};
+
+typedef char verify_gearbox_decal_definition_size[sizeof(struct gearbox_decal_definition) == 0x10C ? 1 : -1];
+typedef char verify_gearbox_runtime_decal_size[sizeof(struct structure_runtime_decal) == 0x10 ? 1 : -1];
+
+/* (how far above the floor an arrow's decal is cast from, and its cast's
+pitch: down, but not straight down, so that its way is the arrow's) */
+#define GEARBOX_ARROW_HEIGHT 0.25f
+#define GEARBOX_ARROW_PITCH (-120)
+
+/* the map's arrows: their decals' entries in the scenario's decal palette
+(gearbox_change_apply), and the Xbox structure bsp's runtime decals with
+them (gearbox_items_structure_bsp_loaded) */
+static struct
+{
+	struct gearbox_map_arrows const *arrows;
+	/* each arrow's decal (its index among the import's made tags), and its
+	palette entry (NONE: none) */
+	short made_indices[MAXIMUM_GEARBOX_ARROWS];
+	short palette_indices[MAXIMUM_GEARBOX_ARROWS];
+	struct structure_runtime_decal runtime_decals[MAXIMUM_GEARBOX_RUNTIME_DECALS];
+} gearbox_map_arrows;
 
 /* Halo PC's structure bsp of a map Gearbox changed: read to its own place
 above the donor's tags, as a Halo PC map's is, its references made the grown
@@ -1880,6 +1979,125 @@ static void gearbox_change_resolve(
 		if (collection != NONE)
 			gearbox_import_resolve(import, collection);
 	}
+
+	return;
+}
+
+/* The decals of the map's arrows made, each a copy of the Xbox map's decal
+with the Halo PC map's bitmap of its arrow (imported), its tags to be added
+to the grown table. An arrow whose decal cannot be is not drawn. */
+static void gearbox_change_arrows_make(
+	struct gearbox_import *import,
+	struct gearbox_map_arrows const *arrows)
+{
+	struct cache_file_tag_instance const *template_instance = NULL;
+	short arrow_index;
+	long index;
+
+	for (index = 0; index < import->xbox_count; index++)
+	{
+		struct cache_file_tag_instance const *instance = &import->xbox_instances[index];
+
+		if ((unsigned long)instance->group_tag == DECAL_GROUP_TAG && instance->name && instance->base_address &&
+			!csstrcasecmp(instance->name, arrows->template_decal))
+		{
+			template_instance = instance;
+		}
+	}
+	if (!template_instance || arrows->count > MAXIMUM_GEARBOX_ARROWS)
+	{
+		error(_error_silent, "gearbox items: the map's arrows are not drawn: it has no decal '%s'", arrows->template_decal);
+		return;
+	}
+	gearbox_map_arrows.arrows = arrows;
+	for (arrow_index = 0; arrow_index < arrows->count; arrow_index++)
+	{
+		struct gearbox_map_arrow const *arrow = &arrows->arrows[arrow_index];
+		long bitmap = gearbox_import_donor_tag(import, GEARBOX_BITMAP_TAG, arrow->bitmap);
+		struct gearbox_decal_definition *definition;
+		long handle;
+		short made;
+
+		gearbox_map_arrows.made_indices[arrow_index] = NONE;
+		gearbox_map_arrows.palette_indices[arrow_index] = NONE;
+		/* (one decal of each name) */
+		for (made = 0; made < import->made_count && csstrcasecmp(import->made[made].name, arrow->decal); made++)
+			;
+		if (made < import->made_count)
+		{
+			gearbox_map_arrows.made_indices[arrow_index] = made;
+			continue;
+		}
+		handle = bitmap != NONE ? gearbox_import_resolve(import, bitmap) : NONE;
+		definition = handle != NONE && import->made_count < MAXIMUM_GEARBOX_MADE_TAGS ?
+			gearbox_allocate(sizeof(*definition)) : NULL;
+		if (!definition || import->xbox_count + import->added_count >= UNSIGNED_SHORT_MAX ||
+			import->first_salt + import->added_count >= UNSIGNED_SHORT_MAX)
+		{
+			error(_error_silent, "gearbox items: the arrow '%s' is not drawn: %s", arrow->decal,
+				bitmap == NONE ? "the Halo PC map has not its bitmap" : "there is no room for its decal");
+			continue;
+		}
+		/* (painted on the surface it is cast on, turned the way of its cast,
+		of the size of Halo PC's) */
+		memcpy(definition, template_instance->base_address, sizeof(*definition));
+		definition->flags = FLAG(_decal_definition_no_random_rotation_bit) | FLAG(_decal_definition_preserve_aspect_bit);
+		definition->next_decal_in_chain.index = NONE;
+		definition->radius_lower_bound = arrow->radius;
+		definition->radius_upper_bound = arrow->radius;
+		definition->map.group_tag = GEARBOX_BITMAP_TAG;
+		definition->map.name = (char *)custom_edition_cache_tag_name(import->donor_tags, import->donor_bytes, bitmap);
+		definition->map.name_length = (long)strlen(definition->map.name);
+		definition->map.index = handle;
+		import->made[import->made_count] = *template_instance;
+		import->made[import->made_count].name = (char *)arrow->decal;
+		import->made[import->made_count].base_address = definition;
+		import->made[import->made_count].tag_index = ((import->first_salt + import->added_count) << 16) |
+			(import->xbox_count + import->added_count);
+		import->added_count++;
+		gearbox_map_arrows.made_indices[arrow_index] = import->made_count++;
+	}
+
+	return;
+}
+
+/* the map's arrows' decals given entries in the scenario's decal palette,
+once the grown table is in place */
+static void gearbox_change_arrows_apply(
+	struct gearbox_import const *import,
+	struct scenario *scenario)
+{
+	struct gearbox_map_arrows const *arrows = gearbox_map_arrows.arrows;
+	struct scenario_decal_palette_entry *palette;
+	long count = scenario->decal_palette.count;
+	short arrow_index, made;
+
+	if (!arrows || !import->made_count)
+		return;
+	/* (a runtime decal's palette index is a byte) */
+	palette = count >= 0 && count + import->made_count <= UNSIGNED_CHAR_MAX ?
+		gearbox_allocate((count + import->made_count) * sizeof(*palette)) : NULL;
+	if (!palette || gearbox_items_globals.patch_count >= MAXIMUM_GEARBOX_PATCHES)
+	{
+		error(_error_silent, "gearbox items: the map's arrows are not drawn: no room in its decal palette");
+		gearbox_map_arrows.arrows = NULL;
+		return;
+	}
+	if (count > 0)
+		memcpy(palette, scenario->decal_palette.address, count * sizeof(*palette));
+	for (made = 0; made < import->made_count; made++)
+	{
+		palette[count + made].reference.group_tag = DECAL_GROUP_TAG;
+		palette[count + made].reference.name = import->made[made].name;
+		palette[count + made].reference.name_length = (long)strlen(import->made[made].name);
+		palette[count + made].reference.index = import->made[made].tag_index;
+	}
+	for (arrow_index = 0; arrow_index < arrows->count; arrow_index++)
+	{
+		made = gearbox_map_arrows.made_indices[arrow_index];
+		gearbox_map_arrows.palette_indices[arrow_index] = made != NONE ? (short)(count + made) : NONE;
+	}
+	gearbox_block_replace(&scenario->decal_palette, count + import->made_count, palette);
 
 	return;
 }
@@ -2079,6 +2297,8 @@ static boolean gearbox_change_apply(
 	}
 	if (gearbox_map_bsp.loaded && change->bsp_no_decals)
 		gearbox_block_replace(&scenario->decals, 0, NULL);
+	if (!gearbox_map_bsp.loaded && change->arrows)
+		gearbox_change_arrows_apply(import, scenario);
 	error(_error_silent,
 		"gearbox items: Gearbox's changes to '%s': %ld scenery placed (%ld of the map's taken away), %ld netgame equipment (%ld of the map's kept), %ld teleporters' flags",
 		change->map_name, selection->scenery_count, removed, selection->equipment_count, equipment_kept,
@@ -2108,6 +2328,7 @@ static boolean gearbox_import(
 
 	memset(&import, 0, sizeof(import));
 	import.own_index = NONE;
+	memset(&gearbox_map_arrows, 0, sizeof(gearbox_map_arrows));
 	selection.change = gearbox_map_change_find(map_name);
 	import.donor_tags = custom_edition_cache_donor_tags(&import.donor_bytes);
 	import.xbox_instances = cache_files_tag_instances(&xbox_count);
@@ -2212,6 +2433,8 @@ static boolean gearbox_import(
 		gearbox_change_resolve(&import, donor_scenario, &selection);
 		if (selection.change->structure_bsp && gearbox_items_donor_path(map_name, path))
 			gearbox_map_bsp_read(&import, path, donor_scenario);
+		if (!gearbox_map_bsp.loaded && selection.change->arrows)
+			gearbox_change_arrows_make(&import, selection.change->arrows);
 	}
 	gearbox_import_rewrite(&import);
 	if (!import.failed && gearbox_import_table(&import))
@@ -2384,6 +2607,7 @@ void gearbox_items_tags_unloaded(
 	custom_edition_cache_donor_unload();
 	/* (Halo PC's structure bsp was in the donor's tag cache) */
 	memset(&gearbox_map_bsp, 0, sizeof(gearbox_map_bsp));
+	memset(&gearbox_map_arrows, 0, sizeof(gearbox_map_arrows));
 	if (gearbox_barriers.data)
 		free(gearbox_barriers.data);
 	memset(&gearbox_barriers, 0, sizeof(gearbox_barriers));
@@ -2420,6 +2644,76 @@ boolean gearbox_items_structure_bsp_release(
 	gearbox_map_bsp.in_use = FALSE;
 
 	return in_use;
+}
+
+void gearbox_items_structure_bsp_loaded(
+	struct structure_bsp *structure_bsp)
+{
+	struct gearbox_map_arrows const *arrows = gearbox_map_arrows.arrows;
+	struct structure_runtime_decal *decals = gearbox_map_arrows.runtime_decals;
+	short clusters[MAXIMUM_GEARBOX_ARROWS];
+	long cluster_index, count = 0, placed = 0;
+	short arrow_index;
+
+	if (!gearbox_items_globals.loaded || !arrows || !structure_bsp)
+		return;
+	if (structure_bsp->runtime_decals.count < 0 ||
+		structure_bsp->runtime_decals.count + arrows->count > MAXIMUM_GEARBOX_RUNTIME_DECALS)
+	{
+		error(_error_silent, "gearbox items: the map's arrows are not drawn: its bsp has %ld decals",
+			structure_bsp->runtime_decals.count);
+		return;
+	}
+	/* (each in the cluster of the floor under it, where its decal is made
+	and taken away) */
+	for (arrow_index = 0; arrow_index < arrows->count; arrow_index++)
+	{
+		real_point3d point = arrows->arrows[arrow_index].position;
+
+		point.z += 0.05f;
+		clusters[arrow_index] = gearbox_map_arrows.palette_indices[arrow_index] != NONE ?
+			(short)cluster_index_from_point(structure_bsp, &point) : NONE;
+	}
+	/* the bsp's decals, each cluster's followed by its arrows */
+	for (cluster_index = 0; cluster_index < structure_bsp->clusters.count; cluster_index++)
+	{
+		struct structure_cluster_runtime_decals *cluster = TAG_BLOCK_GET_ELEMENT(&structure_bsp->clusters, cluster_index,
+			struct structure_cluster_runtime_decals);
+		long first = count;
+
+		if (cluster->first_decal_index != NONE && cluster->decal_count &&
+			cluster->first_decal_index >= 0 && cluster->first_decal_index + cluster->decal_count <= structure_bsp->runtime_decals.count)
+		{
+			memcpy(&decals[count], TAG_BLOCK_GET_ELEMENT(&structure_bsp->runtime_decals, cluster->first_decal_index,
+				struct structure_runtime_decal), cluster->decal_count * sizeof(*decals));
+			count += cluster->decal_count;
+		}
+		for (arrow_index = 0; arrow_index < arrows->count; arrow_index++)
+		{
+			struct gearbox_map_arrow const *arrow = &arrows->arrows[arrow_index];
+			struct structure_runtime_decal *decal = &decals[count];
+
+			if (clusters[arrow_index] != cluster_index)
+				continue;
+			/* (cast from above the floor, down and toward the arrow's right:
+			a decal's texture runs across its cast's way) */
+			decal->position = arrow->position;
+			decal->position.z += GEARBOX_ARROW_HEIGHT;
+			decal->palette_index = (byte)gearbox_map_arrows.palette_indices[arrow_index];
+			decal->unused = 0;
+			decal->yaw = (char)(long)floor(arctangent(-arrow->tip.i, arrow->tip.j) * (127.0f / _pi) + 0.5f);
+			decal->pitch = GEARBOX_ARROW_PITCH;
+			count++;
+			placed++;
+		}
+		cluster->first_decal_index = count > first ? (short)first : NONE;
+		cluster->decal_count = (word)(count - first);
+	}
+	structure_bsp->runtime_decals.count = count;
+	structure_bsp->runtime_decals.address = decals;
+	error(_error_silent, "gearbox items: %ld of the map's %d arrows drawn", placed, arrows->count);
+
+	return;
 }
 
 long gearbox_items_weapon(

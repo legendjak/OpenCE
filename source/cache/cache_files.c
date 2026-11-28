@@ -1777,6 +1777,14 @@ boolean scenario_structure_bsp_load(
 		0xEB,
 		tag_instance->group_tag==STRUCTURE_BSP_TAG);
 	tag_instance->base_address = cache_file_globals.structure_bsp_header->base_address;
+	/* port: Gearbox's arrows on an Xbox map it changed, as decals
+	(port/linux/game/gearbox_items.c) */
+	{
+		extern void gearbox_items_structure_bsp_loaded(struct structure_bsp *structure_bsp);
+
+		if (!custom_edition_cache_tags_loaded())
+			gearbox_items_structure_bsp_loaded((struct structure_bsp *)tag_instance->base_address);
+	}
 
 	return TRUE;
 }

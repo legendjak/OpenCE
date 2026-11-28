@@ -127,14 +127,19 @@ after a load), as their reviews asked.
   place of the Xbox map's: Battle Creek's side windows are smaller and
   cannot be jumped through, and a small cliff on Blood Gulch that could not
   be walked up can be. Sidewinder keeps its own: Halo PC's (thick pillars in
-  the middle tunnel, rooms for the teleporters, arrows to them) has not the
-  shadows of its trees and cliffs. And some of the Halo PC map's placements
+  the middle tunnel, rooms for the teleporters) has not the shadows of its
+  trees and cliffs. Its arrows on the floor to the teleporters are drawn on
+  the Xbox's as decals: copies of Sidewinder's stripe decal with Halo PC's
+  arrow bitmaps, added to the tag table, and placed in the clusters of the
+  floor under them in the structure BSP's runtime decals as it loads. And
+  some of the Halo PC map's placements
   stand for the Xbox map's: Blood Gulch's shrub that floated set on the
   ground and another beside it, Sidewinder's teleporters in its bases (with
   their flags), red and blue beacons, and two of each power-up in the middle
   tunnel. The map's version says whether it has them. This changes three
-  maps by name, and takes tags and a BSP from another map, which the
-  project's rules do not allow upstream (`port/linux/game/gearbox_items.c`).
+  maps by name, takes tags and a BSP from another map, and makes tags,
+  which the project's rules do not allow upstream
+  (`port/linux/game/gearbox_items.c`).
 - Halo PC's crosshair warnings ("Reload", the rocket warthog's dots) are drawn
   with the Xbox's high-res texture: the sheets are laid out alike.
 - Fixed the far half of a map flickering out and in while moving (Halo PC's

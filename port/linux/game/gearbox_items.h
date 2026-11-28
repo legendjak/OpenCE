@@ -80,4 +80,11 @@ void *gearbox_items_structure_bsp(
 boolean gearbox_items_structure_bsp_release(
 	void);
 
+/* With Gearbox's changes to the Xbox map loaded, its own structure bsp just
+loaded given the arrows Halo PC's has (Sidewinder's, to its teleporters), as
+decals of its clusters (its runtime decals) */
+struct structure_bsp;
+void gearbox_items_structure_bsp_loaded(
+	struct structure_bsp *structure_bsp);
+
 #endif
